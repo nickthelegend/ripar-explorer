@@ -152,15 +152,25 @@ function TxRow({ tx, network }: { tx: Transaction; network: Network }) {
   return (
     <tr>
       <td>
+        {/* The id opens OUR detail page, matching how agents and jobs behave.
+            The block explorer is a separate, clearly-marked hop from there. */}
+        <Link
+          href={withNetwork(`/transactions/${tx.id}`, network)}
+          title={tx.id}
+          className="rowlink font-mono text-[12px] hover:underline"
+          style={{ color: "var(--accent-deep)" }}
+        >
+          {tx.id.slice(0, 18)}…
+        </Link>
         <a
           href={txUrl(tx.network, tx.id)}
           target="_blank"
           rel="noreferrer"
-          title={`${tx.id} — opens allo.info; sample ids do not resolve`}
-          className="inline-flex items-center gap-0.5 font-mono text-[12px] hover:underline"
-          style={{ color: "var(--accent-deep)" }}
+          title={`${tx.id} on the block explorer — sample ids do not resolve`}
+          aria-label={`Open ${tx.id} on the block explorer`}
+          className="ml-1 inline-flex align-middle"
+          style={{ color: "var(--ink-3)" }}
         >
-          {tx.id.slice(0, 18)}…
           <ArrowUpRight size={10.5} strokeWidth={2.4} />
         </a>
         <span className="mt-0.5 block text-[11.5px]" style={{ color: "var(--ink-3)" }}>
