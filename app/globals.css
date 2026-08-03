@@ -1,0 +1,141 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, monospace;
+}
+
+:root {
+  --bg: #ffffff;
+  --panel: #ffffff;
+  --panel-2: #fafaf9;
+  --wash: #fff6f1;
+  --line: rgba(0, 0, 0, 0.07);
+  --line-strong: rgba(0, 0, 0, 0.13);
+  --ink: #171717;
+  --ink-2: #63615d; /* warmed off neutral grey to sit with the orange */
+  /* 4.71:1 on --panel and 4.51:1 on --panel-2. It carries real content — job
+     ids, skill lists, timestamps, table headers — so it has to clear AA as
+     normal text, not just look muted. The old #94918c was 3.14:1. */
+  --ink-3: #767370;
+
+  /* --accent is the brand orange and stays that way, but at 2.84:1 it can only
+     ever be a surface or a mark, never a background for white text. Anything
+     carrying white text uses --accent-deep, which is 5.14:1. */
+  --accent: #ff6b2b;
+  --accent-deep: #c4400e;
+
+  /* Status tones. Each is dark enough to clear 4.5:1 on white, because the
+     label text uses the same value as the dot. */
+  --ok: #15803d;
+  --warn: #a55a08;
+  --bad: #c02626;
+  --info: #1d4ed8;
+  --violet: #6d28d9;
+  --neutral: #78716c;
+}
+
+html {
+  background: var(--bg);
+}
+
+body {
+  font-family: var(--font-sans);
+  background: var(--bg);
+  color: var(--ink);
+  font-size: 14px;
+  -webkit-font-smoothing: antialiased;
+  /* clip, not hidden — hidden makes body a scroll container and kills sticky */
+  overflow-x: clip;
+}
+
+/* Any figure that can change between two renders of the same page. Without
+   tabular figures a sortable column jitters horizontally as you sort it. */
+.tnum {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1;
+}
+
+::selection {
+  background: rgba(255, 107, 43, 0.25);
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* ── tables ────────────────────────────────────────────────────────────── */
+
+.tbl {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 13.5px;
+}
+.tbl thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--panel-2);
+  border-bottom: 1px solid var(--line);
+  font-weight: 550;
+  font-size: 11.5px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  text-align: left;
+  padding: 0;
+  white-space: nowrap;
+}
+.tbl tbody td {
+  border-bottom: 1px solid var(--line);
+  padding: 11px 14px;
+  vertical-align: middle;
+}
+.tbl tbody tr:last-child td {
+  border-bottom: 0;
+}
+.tbl tbody tr {
+  transition: background-color 0.12s ease;
+}
+.tbl tbody tr:hover {
+  background: var(--panel-2);
+}
+.tbl .num {
+  text-align: right;
+}
+
+/* Row-wide link target: the anchor sits in the first cell but the whole row
+   reacts, so the click target is the row without nesting a link per cell. */
+.rowlink::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+}
+
+/* ── skeletons ─────────────────────────────────────────────────────────── */
+
+@keyframes shimmer {
+  0% { opacity: 0.45; }
+  50% { opacity: 0.9; }
+  100% { opacity: 0.45; }
+}
+.skel {
+  background: rgba(0, 0, 0, 0.07);
+  border-radius: 4px;
+  animation: shimmer 1.4s ease-in-out infinite;
+}
+
+@keyframes beat {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.4; transform: scale(0.78); }
+}
+.beat {
+  animation: beat 2.6s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skel, .beat { animation: none; }
+}
