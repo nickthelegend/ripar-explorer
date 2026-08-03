@@ -101,8 +101,8 @@ export default async function JobDetailPage({ params, searchParams }: Params) {
           <Status tone={s.tone} label={s.label} title={s.hint} pulse={job.status === "running"} />
           {job.network !== viewNetwork && <Chip>on {networkLabel(job.network)}</Chip>}
         </div>
-        <p className="mt-1.5 font-mono text-[12.5px]" style={{ color: "var(--ink-3)" }}>
-          {job.id}
+        <p className="mt-1.5" style={{ color: "var(--ink-3)" }}>
+          <Mono value={job.id} label="job id" />
         </p>
         {job.statusNote && (
           <p
@@ -208,7 +208,7 @@ export default async function JobDetailPage({ params, searchParams }: Params) {
                   : "No agent has bid on this job yet. The escrow is committed and refunds automatically if the window closes empty."}
               </p>
             ) : (
-              <div className="overflow-x-auto">
+              <div className="tbl-wrap">
                 <table className="tbl">
                   <thead>
                     <tr>
@@ -247,8 +247,8 @@ export default async function JobDetailPage({ params, searchParams }: Params) {
                             ) : (
                               <span className="font-mono text-[12px]">{bid.agentId}</span>
                             )}
-                            <span className="mt-0.5 block truncate font-mono text-[11.5px]" style={{ color: "var(--ink-3)" }}>
-                              {bid.agentId}
+                            <span className="above-rowlink mt-0.5 block" style={{ color: "var(--ink-3)" }}>
+                              <Mono value={bid.agentId} label={`agent id ${bid.agentId}`} />
                             </span>
                           </td>
                           <td className="num tnum" style={awarded ? { fontWeight: 600 } : undefined}>
@@ -289,7 +289,7 @@ export default async function JobDetailPage({ params, searchParams }: Params) {
                 No transaction has touched this job yet — the escrow has not been funded.
               </p>
             ) : (
-              <div className="overflow-x-auto">
+              <div className="tbl-wrap">
                 <table className="tbl">
                   <thead>
                     <tr>
@@ -320,17 +320,27 @@ export default async function JobDetailPage({ params, searchParams }: Params) {
                             <Status tone={k.tone} label={k.label} title={k.hint} size="sm" />
                           </td>
                           <td>
-                            <a
-                              href={txUrl(t.network, t.id)}
-                              target="_blank"
-                              rel="noreferrer"
-                              title={`${t.id} — opens allo.info; sample ids do not resolve`}
-                              className="inline-flex items-center gap-0.5 font-mono text-[12px] hover:underline"
-                              style={{ color: "var(--accent-deep)" }}
-                            >
-                              {t.id.slice(0, 16)}…
-                              <ArrowUpRight size={10.5} strokeWidth={2.4} />
-                            </a>
+                            <span className="inline-flex items-center gap-1">
+                              <Link
+                                href={withNetwork(`/transactions/${t.id}`, network)}
+                                title={t.id}
+                                className="font-mono text-[12px] hover:underline"
+                                style={{ color: "var(--accent-deep)" }}
+                              >
+                                {t.id.slice(0, 16)}…
+                              </Link>
+                              <a
+                                href={txUrl(t.network, t.id)}
+                                target="_blank"
+                                rel="noreferrer"
+                                title={`${t.id} on the block explorer — sample ids do not resolve`}
+                                aria-label={`Open ${t.id} on the block explorer`}
+                                style={{ color: "var(--ink-3)" }}
+                              >
+                                <ArrowUpRight size={10.5} strokeWidth={2.4} />
+                              </a>
+                              <CopyButton text={t.id} label={`transaction id ${t.id}`} />
+                            </span>
                             {t.failureReason && (
                               <span className="mt-0.5 block text-[11.5px] leading-snug" style={{ color: "var(--bad)" }}>
                                 {t.failureReason}

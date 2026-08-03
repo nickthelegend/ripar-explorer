@@ -5,10 +5,19 @@ import { useSearchParams } from "next/navigation";
 import { ArrowUpRight } from "lucide-react";
 import { TX_SORTS, fetchTransactions, networkLabel, txUrl, type Network, type Transaction, type TxKind } from "@/lib/explorer-data";
 import { TX_KIND, TX_STATUS, algo, int, relTime, shortAddr, usdc } from "@/lib/format";
-import { buildHref, readView, withNetwork } from "@/lib/nav";
+import { buildHref, readView, toQuery, withNetwork } from "@/lib/nav";
 import { useResource } from "@/lib/use-resource";
-import { FilterChips, Pagination, PlainTh, SearchInput, SortTh, type ChipDef } from "@/components/controls";
+import {
+  ActiveFilters,
+  FilterChips,
+  Pagination,
+  PlainTh,
+  SearchInput,
+  SortTh,
+  type ChipDef,
+} from "@/components/controls";
 import { EmptyState, ErrorState, Panel, Status, TableSkeleton } from "@/components/ui";
+import { CopyButton, Mono } from "@/components/copy-button";
 
 const DEFAULTS = { sort: "time" };
 const PATH = "/transactions";
@@ -20,9 +29,11 @@ export function TransactionsView() {
   const view = readView(params, DEFAULTS.sort, TX_SORTS);
   const ctx = { pathname: PATH, view, defaults: DEFAULTS };
 
-  const { data, error, loading } = useResource(() => fetchTransactions(view), JSON.stringify(view));
+  const { data, error, loading } = useResource(() => fetchTransactions(toQuery(view)), JSON.stringify(view));
+
+  // Counts are over the whole network slice, not a page of it — see `PageSize`.
   const counts = useResource(
-    () => fetchTransactions({ network: view.network, pageSize: 100 }),
+    () => fetchTransactions({ network: view.network, pageSize: "all" }),
     `counts:${view.network}`,
   );
 
@@ -64,6 +75,7 @@ export function TransactionsView() {
         >
           <SearchInput ctx={ctx} placeholder="Search tx id, address, job or agent" />
           <FilterChips ctx={ctx} options={chips} />
+          <ActiveFilters ctx={ctx} noun="transactions" />
         </div>
 
         {error ? (
@@ -91,7 +103,7 @@ export function TransactionsView() {
             }
             action={
               <Link
-                href={buildHref(PATH, view, { q: "", status: [] }, DEFAULTS)}
+                href={buildHref(PATH, view, { q: "", status: [], skills: [], min: null, max: null }, DEFAULTS)}
                 className="rounded-md border px-2.5 py-1 text-[12.5px] font-medium"
                 style={{ borderColor: "var(--line-strong)" }}
               >
@@ -101,7 +113,7 @@ export function TransactionsView() {
           />
         ) : data ? (
           <>
-            <div className="overflow-x-auto" style={{ opacity: loading ? 0.55 : 1, transition: "opacity 0.15s" }}>
+            <div className="tbl-wrap" style={{ opacity: loading ? 0.55 : 1, transition: "opacity 0.15s" }}>
               <table className="tbl">
                 <thead>
                   <tr>
@@ -162,17 +174,19 @@ function TxRow({ tx, network }: { tx: Transaction; network: Network }) {
         >
           {tx.id.slice(0, 18)}…
         </Link>
-        <a
-          href={txUrl(tx.network, tx.id)}
-          target="_blank"
-          rel="noreferrer"
-          title={`${tx.id} on the block explorer — sample ids do not resolve`}
-          aria-label={`Open ${tx.id} on the block explorer`}
-          className="ml-1 inline-flex align-middle"
-          style={{ color: "var(--ink-3)" }}
-        >
-          <ArrowUpRight size={10.5} strokeWidth={2.4} />
-        </a>
+        <span className="above-rowlink ml-1 inline-flex items-center align-middle">
+          <a
+            href={txUrl(tx.network, tx.id)}
+            target="_blank"
+            rel="noreferrer"
+            title={`${tx.id} on the block explorer — sample ids do not resolve`}
+            aria-label={`Open ${tx.id} on the block explorer`}
+            style={{ color: "var(--ink-3)" }}
+          >
+            <ArrowUpRight size={10.5} strokeWidth={2.4} />
+          </a>
+          <CopyButton text={tx.id} label={`transaction id ${tx.id}`} />
+        </span>
         <span className="mt-0.5 block text-[11.5px]" style={{ color: "var(--ink-3)" }}>
           fee {algo(tx.feeMicroAlgo)} ALGO
         </span>
@@ -181,12 +195,12 @@ function TxRow({ tx, network }: { tx: Transaction; network: Network }) {
         <Status tone={k.tone} label={k.label} title={k.hint} size="sm" />
       </td>
       <td className="min-w-0">
-        <span className="block truncate font-mono text-[11.5px]" style={{ color: "var(--ink-2)" }}>
-          <span title={tx.from}>{shortAddr(tx.from, 6, 4)}</span>
+        <span className="flex items-center gap-1" style={{ color: "var(--ink-2)" }}>
+          <Mono value={tx.from} display={shortAddr(tx.from, 6, 4)} label="sender address" />
           <span aria-hidden style={{ color: "var(--ink-3)" }}>
-            {" → "}
+            →
           </span>
-          <span title={tx.to}>{shortAddr(tx.to, 6, 4)}</span>
+          <Mono value={tx.to} display={shortAddr(tx.to, 6, 4)} label="recipient address" />
         </span>
         <span className="mt-0.5 block truncate text-[11.5px]" style={{ color: "var(--ink-3)" }}>
           {tx.jobId ? (

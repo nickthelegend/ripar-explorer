@@ -2,42 +2,49 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowDown, ArrowUp, ChevronLeft, ChevronRight, Search, X } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { ArrowDown, ArrowUp, ChevronDown, ChevronLeft, ChevronRight, Search, X } from "lucide-react";
+import { useEffect, useId, useState } from "react";
 import { buildHref, nextSort, type ViewState } from "@/lib/nav";
-import { TONE_VAR, type Tone } from "@/lib/format";
+import { TONE_VAR, usdc, type Tone } from "@/lib/format";
 
 type Ctx = { pathname: string; view: ViewState; defaults: { sort: string } };
 
 /* ── search ────────────────────────────────────────────────────────────── */
 
-/**
- * Debounced, and it uses `replace` rather than `push`. Pushing on every
- * keystroke buries the page you came from under ten history entries and makes
- * the back button useless.
- */
+/** The free-text filter. The URL is the source of truth; this box is a draft of
+ *  the next URL that has not been committed yet. */
 export function SearchInput({ ctx, placeholder }: { ctx: Ctx; placeholder: string }) {
   const router = useRouter();
-  const [value, setValue] = useState(ctx.view.q);
 
-  // `ctx` is rebuilt on every render, so depending on it directly would restart
-  // the debounce whenever anything else on the page re-rendered — including the
-  // chip-count fetch resolving mid-keystroke.
-  const ctxRef = useRef(ctx);
-  ctxRef.current = ctx;
+  /**
+   * What has been typed but not yet written to the URL, tagged with the URL
+   * value it was typed against. The tag is what lets a back/forward navigation
+   * win: the moment the address changes for any reason other than this box's
+   * own commit, the draft stops matching and the URL is shown instead. No
+   * effect races the input, so nothing can overwrite a keystroke mid-type.
+   */
+  const [draft, setDraft] = useState<{ text: string; against: string } | null>(null);
+  const committed = ctx.view.q;
+  const value = draft && draft.against === committed ? draft.text : committed;
 
-  // The URL is the source of truth; a back/forward navigation must win over
-  // whatever is sitting in the input.
-  useEffect(() => setValue(ctx.view.q), [ctx.view.q]);
+  // Computed during render so the effect can depend on a plain string. `ctx` is
+  // rebuilt every render, and depending on it would restart the debounce
+  // whenever anything else re-rendered — including the chip-count fetch
+  // resolving mid-keystroke, which is how a typed query used to get lost.
+  const target = buildHref(ctx.pathname, ctx.view, { q: value }, ctx.defaults);
 
+  /**
+   * Debounced, and it uses `replace` rather than `push`. Pushing on every
+   * keystroke buries the page you came from under ten history entries and makes
+   * the back button useless.
+   */
   useEffect(() => {
-    if (value === ctxRef.current.view.q) return;
-    const t = setTimeout(() => {
-      const c = ctxRef.current;
-      router.replace(buildHref(c.pathname, c.view, { q: value }, c.defaults), { scroll: false });
-    }, 220);
+    if (value === committed) return;
+    const t = setTimeout(() => router.replace(target, { scroll: false }), 220);
     return () => clearTimeout(t);
-  }, [value, ctx.view.q, router]);
+  }, [value, committed, target, router]);
+
+  const type = (text: string) => setDraft({ text, against: committed });
 
   return (
     <div className="relative flex-1 sm:max-w-[320px]">
@@ -49,7 +56,7 @@ export function SearchInput({ ctx, placeholder }: { ctx: Ctx; placeholder: strin
       />
       <input
         value={value}
-        onChange={(e) => setValue(e.target.value)}
+        onChange={(e) => type(e.target.value)}
         placeholder={placeholder}
         aria-label={placeholder}
         spellCheck={false}
@@ -59,7 +66,7 @@ export function SearchInput({ ctx, placeholder }: { ctx: Ctx; placeholder: strin
       {value && (
         <button
           type="button"
-          onClick={() => setValue("")}
+          onClick={() => type("")}
           aria-label="Clear search"
           className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-0.5 hover:bg-black/[0.06]"
           style={{ color: "var(--ink-3)" }}
@@ -121,6 +128,252 @@ export function FilterChips({ ctx, options }: { ctx: Ctx; options: ChipDef[] }) 
           </Link>
         );
       })}
+    </div>
+  );
+}
+
+/* ── skill filter ──────────────────────────────────────────────────────── */
+
+/**
+ * A disclosure rather than a dropdown, and it expands in the flow of the
+ * toolbar rather than floating over it. The toolbar lives inside a Panel, and a
+ * Panel clips its own overflow — an absolutely positioned menu would have been
+ * sliced off at the first hairline.
+ *
+ * Each skill is a link, like the status chips, so a skill filter is part of the
+ * address and survives a reload.
+ */
+export function SkillFilter({
+  ctx,
+  options,
+  loading = false,
+}: {
+  ctx: Ctx;
+  options: { value: string; count: number }[];
+  loading?: boolean;
+}) {
+  const active = ctx.view.skills;
+  const [open, setOpen] = useState(active.length > 0);
+  const panelId = useId();
+
+  const toggle = (value: string) =>
+    active.includes(value) ? active.filter((s) => s !== value) : [...active, value];
+
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        aria-expanded={open}
+        aria-controls={panelId}
+        className="inline-flex items-center gap-1.5 rounded-md border px-2 py-1 text-[12px] font-medium transition-colors"
+        style={
+          active.length
+            ? { borderColor: "var(--accent)", color: "var(--accent-deep)", background: "var(--wash)" }
+            : { borderColor: "var(--line-strong)", color: "var(--ink-2)" }
+        }
+      >
+        {open ? "Hide skills" : "Filter by skill"}
+        {active.length > 0 && <span className="tnum">{active.length}</span>}
+        <ChevronDown
+          size={12}
+          strokeWidth={2.4}
+          aria-hidden
+          style={{ transform: open ? "rotate(180deg)" : undefined, transition: "transform 0.15s" }}
+        />
+      </button>
+
+      {open && (
+        <div id={panelId} className="w-full basis-full">
+          {loading ? (
+            <p className="text-[12px]" style={{ color: "var(--ink-3)" }}>
+              Reading the skills posted on this network…
+            </p>
+          ) : options.length === 0 ? (
+            <p className="text-[12px]" style={{ color: "var(--ink-3)" }}>
+              No job on this network names a required skill.
+            </p>
+          ) : (
+            <div className="flex flex-wrap gap-1.5">
+              {options.map((o) => {
+                const on = active.includes(o.value);
+                return (
+                  <Link
+                    key={o.value}
+                    href={buildHref(ctx.pathname, ctx.view, { skills: toggle(o.value) }, ctx.defaults)}
+                    scroll={false}
+                    aria-current={on ? "true" : undefined}
+                    title={`${o.count} job${o.count === 1 ? "" : "s"} require ${o.value}`}
+                    className="inline-flex items-center gap-1.5 rounded-md border px-2 py-1 font-mono text-[11.5px] transition-colors"
+                    style={
+                      on
+                        ? { borderColor: "var(--accent)", color: "var(--accent-deep)", background: "var(--wash)" }
+                        : { borderColor: "var(--line)", color: "var(--ink-2)", background: "var(--panel-2)" }
+                    }
+                  >
+                    {o.value}
+                    <span className="tnum" style={{ color: "var(--ink-3)" }}>
+                      {o.count}
+                    </span>
+                  </Link>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+    </>
+  );
+}
+
+/* ── budget range ──────────────────────────────────────────────────────── */
+
+const numberOrNull = (raw: string): number | null => {
+  const t = raw.trim();
+  if (!t) return null;
+  const n = Number(t);
+  return Number.isFinite(n) && n >= 0 ? n : null;
+};
+
+/**
+ * Two bounds and a button that names what it does. Submitted rather than
+ * live-filtered: a range is two numbers, and refiltering the table on the first
+ * digit of the second one is noise, not responsiveness.
+ */
+export function BudgetRange({ ctx, bounds }: { ctx: Ctx; bounds: { min: number; max: number } | null }) {
+  const router = useRouter();
+  const minId = useId();
+  const maxId = useId();
+
+  // Same tagged-draft trick as the search box: the typed values are shown only
+  // while the address they were typed against is still the current one, so a
+  // back navigation restores the range that URL actually carries.
+  const committed = `${ctx.view.min ?? ""}|${ctx.view.max ?? ""}`;
+  const [draft, setDraft] = useState<{ min: string; max: string; against: string } | null>(null);
+  const live = draft && draft.against === committed ? draft : null;
+  const minText = live ? live.min : ctx.view.min?.toString() ?? "";
+  const maxText = live ? live.max : ctx.view.max?.toString() ?? "";
+
+  const set = (patch: { min?: string; max?: string }) =>
+    setDraft({ min: patch.min ?? minText, max: patch.max ?? maxText, against: committed });
+
+  const field =
+    "h-8 w-[86px] rounded-lg border bg-transparent px-2 text-[12.5px] tabular-nums outline-none transition-colors focus:border-[var(--accent)]";
+
+  return (
+    <form
+      onSubmit={(e) => {
+        e.preventDefault();
+        router.push(
+          buildHref(
+            ctx.pathname,
+            ctx.view,
+            { min: numberOrNull(minText), max: numberOrNull(maxText) },
+            ctx.defaults,
+          ),
+          { scroll: false },
+        );
+      }}
+      className="flex flex-wrap items-center gap-1.5"
+    >
+      <span className="text-[12px]" style={{ color: "var(--ink-3)" }}>
+        Budget
+      </span>
+      <label className="sr-only" htmlFor={minId}>
+        Minimum budget in USDC
+      </label>
+      <input
+        id={minId}
+        value={minText}
+        onChange={(e) => set({ min: e.target.value })}
+        type="number"
+        min={0}
+        step="any"
+        inputMode="decimal"
+        placeholder={bounds ? usdc(bounds.min, { compact: true }) : "min"}
+        className={field}
+        style={{ borderColor: "var(--line-strong)" }}
+      />
+      <span aria-hidden className="text-[12px]" style={{ color: "var(--ink-3)" }}>
+        –
+      </span>
+      <label className="sr-only" htmlFor={maxId}>
+        Maximum budget in USDC
+      </label>
+      <input
+        id={maxId}
+        value={maxText}
+        onChange={(e) => set({ max: e.target.value })}
+        type="number"
+        min={0}
+        step="any"
+        inputMode="decimal"
+        placeholder={bounds ? usdc(bounds.max, { compact: true }) : "max"}
+        className={field}
+        style={{ borderColor: "var(--line-strong)" }}
+      />
+      <button
+        type="submit"
+        className="rounded-md border px-2 py-1 text-[12px] font-medium transition-colors"
+        style={{ borderColor: "var(--line-strong)", color: "var(--ink-2)" }}
+      >
+        Apply budget range
+      </button>
+    </form>
+  );
+}
+
+/* ── active filter summary ─────────────────────────────────────────────── */
+
+/**
+ * Everything currently narrowing the table, each with the one control that
+ * removes it. Without this a skill filter set three scrolls ago is invisible
+ * and the empty table looks like missing data.
+ */
+export function ActiveFilters({ ctx, noun }: { ctx: Ctx; noun: string }) {
+  const { q, status, skills, min, max } = ctx.view;
+  const anything = Boolean(q) || status.length > 0 || skills.length > 0 || min != null || max != null;
+  if (!anything) return null;
+
+  const pill = (key: string, label: string, patch: Partial<ViewState>) => (
+    <Link
+      key={key}
+      href={buildHref(ctx.pathname, ctx.view, patch, ctx.defaults)}
+      scroll={false}
+      className="inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-[11.5px] font-medium transition-colors"
+      style={{ borderColor: "var(--line-strong)", color: "var(--ink-2)" }}
+    >
+      {label}
+      <X size={11} strokeWidth={2.4} aria-hidden />
+    </Link>
+  );
+
+  return (
+    <div className="flex w-full basis-full flex-wrap items-center gap-1.5">
+      <span className="text-[11.5px]" style={{ color: "var(--ink-3)" }}>
+        Filtering {noun} by
+      </span>
+      {q && pill("q", `search “${q}”`, { q: "" })}
+      {status.map((s) => pill(`status-${s}`, s, { status: status.filter((x) => x !== s) }))}
+      {skills.map((s) => pill(`skill-${s}`, s, { skills: skills.filter((x) => x !== s) }))}
+      {(min != null || max != null) &&
+        pill(
+          "budget",
+          min != null && max != null
+            ? `${usdc(min, { compact: true })}–${usdc(max, { compact: true })} USDC`
+            : min != null
+              ? `${usdc(min, { compact: true })} USDC and up`
+              : `up to ${usdc(max!, { compact: true })} USDC`,
+          { min: null, max: null },
+        )}
+      <Link
+        href={buildHref(ctx.pathname, ctx.view, { q: "", status: [], skills: [], min: null, max: null }, ctx.defaults)}
+        scroll={false}
+        className="text-[11.5px] font-medium underline underline-offset-2"
+        style={{ color: "var(--accent-deep)" }}
+      >
+        Clear all filters
+      </Link>
     </div>
   );
 }

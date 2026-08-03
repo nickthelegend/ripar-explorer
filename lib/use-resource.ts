@@ -7,34 +7,50 @@ export type Resource<T> = { data: T | null; error: string | null; loading: boole
 /**
  * Awaits a data-layer call and exposes the three states the UI has to draw.
  *
- * Two deliberate behaviours:
+ * Three deliberate behaviours:
  *  - previous `data` is held across a refetch, so retyping in the search box
  *    never blanks the table you are reading;
- *  - a stale response can never overwrite a newer one, because each run tags
- *    itself and only the latest tag is allowed to commit.
+ *  - a stale response can never overwrite a newer one, because the run is
+ *    marked dead by the effect's own cleanup the moment `key` changes;
+ *  - `loading` is DERIVED from whether the settled result belongs to the
+ *    current key, rather than stored and raised in the effect. Storing it cost
+ *    an extra render on every single query for a value that was already
+ *    knowable at render time.
  */
 export function useResource<T>(load: () => Promise<T>, key: string): Resource<T> {
-  const [state, setState] = useState<Resource<T>>({ data: null, error: null, loading: true });
-  const latest = useRef(0);
+  const [settled, setSettled] = useState<{ key: string; data: T | null; error: string | null } | null>(null);
+
   // Held in a ref so an inline arrow at the call site does not retrigger the
-  // effect on every render — `key` alone decides when to reload.
+  // fetch on every render — `key` alone decides when to reload. Written in an
+  // effect rather than during render: it only has to be current by the time the
+  // fetch below runs, and effects fire in declaration order.
   const loadRef = useRef(load);
-  loadRef.current = load;
+  useEffect(() => {
+    loadRef.current = load;
+  });
 
   useEffect(() => {
-    const run = ++latest.current;
-    setState((s) => ({ ...s, loading: true, error: null }));
+    let live = true;
     loadRef.current().then(
       (data) => {
-        if (run === latest.current) setState({ data, error: null, loading: false });
+        if (live) setSettled({ key, data, error: null });
       },
       (err: unknown) => {
-        if (run === latest.current) {
-          setState({ data: null, error: err instanceof Error ? err.message : String(err), loading: false });
+        if (live) {
+          setSettled({ key, data: null, error: err instanceof Error ? err.message : String(err) });
         }
       },
     );
+    return () => {
+      live = false;
+    };
   }, [key]);
 
-  return state;
+  const fresh = settled != null && settled.key === key;
+  return {
+    data: settled?.data ?? null,
+    // A failure from the previous query is not a failure of this one.
+    error: fresh ? settled.error : null,
+    loading: !fresh,
+  };
 }

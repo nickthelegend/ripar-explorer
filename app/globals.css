@@ -68,6 +68,32 @@ body {
 
 /* ── tables ────────────────────────────────────────────────────────────── */
 
+/**
+ * The table's scroll box, and the reason the sticky header now works.
+ *
+ * `position: sticky` resolves against the nearest scrolling ancestor, not the
+ * viewport. Every table here sat inside a plain `overflow-x: auto` wrapper, and
+ * per the overflow spec a box with one axis `auto` computes the other axis from
+ * `visible` to `auto` as well — so that wrapper WAS the scrollport, it was
+ * exactly as tall as its content, it never scrolled vertically, and `top: 0`
+ * had nothing to measure against. The header was pinned to a rail that never
+ * moved, which is indistinguishable from not being sticky at all.
+ *
+ * Giving the wrapper a height budget makes it a real scrollport on both axes:
+ * long tables scroll inside the panel with the header held at the top, and
+ * short tables are untouched because they never reach the ceiling.
+ *
+ * The ceiling is deliberately below the viewport, not equal to it. The site
+ * header and the data-source bar are themselves sticky and occupy ~5.6rem, so
+ * a full-height box would let the table's own header slide up underneath them.
+ * At this height the whole box fits between the chrome and the fold, which is
+ * what makes the wheel scroll the rows rather than the page.
+ */
+.tbl-wrap {
+  overflow: auto;
+  max-height: min(calc(100vh - 13rem), 660px);
+}
+
 .tbl {
   width: 100%;
   border-collapse: separate;
@@ -77,7 +103,8 @@ body {
 .tbl thead th {
   position: sticky;
   top: 0;
-  z-index: 1;
+  z-index: 2;
+  /* Opaque, or the rows scrolling underneath show through the header. */
   background: var(--panel-2);
   border-bottom: 1px solid var(--line);
   font-weight: 550;
@@ -113,6 +140,14 @@ body {
   content: "";
   position: absolute;
   inset: 0;
+}
+
+/* That overlay covers the whole first cell, including the id printed under the
+   title. A copy control down there needs to sit above it or it is a dead
+   button that silently navigates instead. */
+.above-rowlink {
+  position: relative;
+  z-index: 1;
 }
 
 /* ── skeletons ─────────────────────────────────────────────────────────── */

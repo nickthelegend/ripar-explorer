@@ -210,7 +210,6 @@ function b32(rnd: () => number, length: number): string {
 const iso = (ms: number) => new Date(ms).toISOString();
 const roundAt = (network: Network, ms: number) =>
   HEAD_ROUND[network] - Math.floor((NOW - ms) / ROUND_MS);
-const pick = <T,>(rnd: () => number, xs: readonly T[]): T => xs[Math.floor(rnd() * xs.length)];
 const between = (rnd: () => number, lo: number, hi: number) => lo + rnd() * (hi - lo);
 const money = (n: number) => Math.round(n * 100) / 100;
 
@@ -498,7 +497,6 @@ const JOBS_BY_ID = new Map(JOBS.map((j) => [j.id, j]));
 const TRANSACTIONS: Transaction[] = (() => {
   const out: Transaction[] = [];
   const rnd = mulberry32(0x9e11);
-  const PROTOCOL_TREASURY = b32(mulberry32(0x7ea5), 58);
 
   const push = (t: Omit<Transaction, "id" | "round"> & { round?: number }) => {
     out.push({
@@ -679,14 +677,34 @@ for (const agent of AGENTS) {
 
 export type SortDir = "asc" | "desc";
 
+/** The largest page a caller may ask for by number. Asking for every row is a
+ *  separate, named request — see `PageSize`. */
+export const MAX_PAGE_SIZE = 100;
+
+/**
+ * A row count, or `"all"`.
+ *
+ * `"all"` exists because "give me every matching row" is a real question — the
+ * facet counts under the filter chips ask it — and it used to be spelled
+ * `pageSize: 100`, which is not that question. It only agreed with the clamp by
+ * coincidence, and the first time this dataset passes 100 rows the counts would
+ * have started under-reporting with nothing on screen to give it away.
+ */
+export type PageSize = number | "all";
+
 export type ListQuery = {
   network?: Network;
   q?: string;
   status?: string[];
+  /** Jobs only: match any of these required skills. */
+  skills?: string[];
+  /** Jobs only: inclusive budget bounds in USDC. */
+  minBudget?: number | null;
+  maxBudget?: number | null;
   sort?: string;
   dir?: SortDir;
   page?: number;
-  pageSize?: number;
+  pageSize?: PageSize;
 };
 
 export type Paged<T> = {
@@ -708,8 +726,12 @@ export const JOB_SORTS = ["created", "title", "status", "budget", "bids", "escro
 export const TX_SORTS = ["time", "kind", "amount", "round", "status"] as const;
 
 function paginate<T>(rows: T[], query: ListQuery, sort: string, defaultSize: number, network: Network): Paged<T> {
-  const pageSize = Math.min(Math.max(query.pageSize ?? defaultSize, 5), 100);
   const total = rows.length;
+  // An empty result still has a page size, or `first–last of 0` divides by zero.
+  const pageSize =
+    query.pageSize === "all"
+      ? Math.max(total, 1)
+      : Math.min(Math.max(query.pageSize ?? defaultSize, 5), MAX_PAGE_SIZE);
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
   // Clamp rather than 404 — a filter change that shortens the result set must
   // not strand the reader on an empty page 7.
@@ -785,6 +807,11 @@ export async function fetchJobs(query: ListQuery = {}): Promise<Paged<Job>> {
 
   let rows = JOBS.filter((j) => j.network === network);
   if (query.status?.length) rows = rows.filter((j) => query.status!.includes(j.status));
+  // Skills are OR'd, not AND'd: picking "ocr" and "vision" asks for work either
+  // skill could take, which is the question someone shopping for work has.
+  if (query.skills?.length) rows = rows.filter((j) => j.skillsRequired.some((s) => query.skills!.includes(s)));
+  if (query.minBudget != null) rows = rows.filter((j) => j.budgetUsdc >= query.minBudget!);
+  if (query.maxBudget != null) rows = rows.filter((j) => j.budgetUsdc <= query.maxBudget!);
   if (query.q) rows = rows.filter((j) => matches([j.title, j.id, j.requester, ...j.skillsRequired], query.q!));
 
   const key = (j: Job): number | string | null => {
@@ -806,6 +833,48 @@ export async function fetchJobs(query: ListQuery = {}): Promise<Paged<Job>> {
 export async function fetchJob(id: string): Promise<Job | null> {
   const key = id.toLowerCase();
   return respond(JOBS.find((j) => j.id.toLowerCase() === key) ?? null);
+}
+
+/**
+ * Everything the job board's filter controls need, measured against the whole
+ * network slice rather than the current page: how many jobs sit at each status,
+ * which skills are actually asked for, and the real budget range. Offering a
+ * skill nobody has posted, or a budget slider wider than the data, invites the
+ * reader to filter their way to an empty table.
+ */
+export type JobFacets = {
+  network: Network;
+  total: number;
+  status: { value: JobStatus; count: number }[];
+  skills: { value: string; count: number }[];
+  budget: { min: number; max: number };
+  asOf: string;
+  source: "sample";
+};
+
+export async function fetchJobFacets(network: Network = DEFAULT_NETWORK): Promise<JobFacets> {
+  const rows = JOBS.filter((j) => j.network === network);
+
+  const skillCounts = new Map<string, number>();
+  for (const job of rows) {
+    for (const skill of job.skillsRequired) skillCounts.set(skill, (skillCounts.get(skill) ?? 0) + 1);
+  }
+
+  const budgets = rows.map((j) => j.budgetUsdc);
+
+  return respond({
+    network,
+    total: rows.length,
+    status: (
+      ["open", "bidding", "running", "verifying", "verified", "failed", "cancelled", "expired"] as JobStatus[]
+    ).map((value) => ({ value, count: rows.filter((j) => j.status === value).length })),
+    skills: [...skillCounts.entries()]
+      .map(([value, count]) => ({ value, count }))
+      .sort((a, b) => b.count - a.count || a.value.localeCompare(b.value)),
+    budget: { min: budgets.length ? Math.min(...budgets) : 0, max: budgets.length ? Math.max(...budgets) : 0 },
+    asOf: SNAPSHOT,
+    source: "sample",
+  });
 }
 
 export async function fetchTransactions(query: ListQuery = {}): Promise<Paged<Transaction>> {
@@ -935,35 +1004,340 @@ export async function fetchOverview(network: Network = DEFAULT_NETWORK): Promise
   });
 }
 
-/**
- * Header search: resolve a pasted identifier to the one page that owns it,
- * before falling back to a text query. An explorer should never make you guess
- * which tab an ID belongs to.
- */
-export type Resolution =
-  | { kind: "agent"; href: string }
-  | { kind: "job"; href: string }
-  | { kind: "transaction"; href: string }
-  | { kind: "search"; href: string };
+/* ── leaderboard ───────────────────────────────────────────────────────── */
 
-export function resolveQuery(term: string, network: Network): Resolution {
-  const t = term.trim();
-  const suffix = network === DEFAULT_NETWORK ? "" : `?network=${network}`;
-  const joiner = suffix ? "&" : "?";
+/** How far back the previous ranking is measured. A week is long enough that a
+ *  single settlement does not reshuffle the board every hour. */
+export const LEADERBOARD_LOOKBACK_DAYS = 7;
 
-  const agent = AGENTS.find(
-    (a) => a.id.toLowerCase() === t.toLowerCase() || a.handle.toLowerCase() === t.toLowerCase() || a.address === t,
-  );
-  if (agent) return { kind: "agent", href: `/agents/${agent.id}${suffix}` };
+export type LeaderboardRow = {
+  rank: number;
+  /**
+   * Where this agent ranked a week before the capture, by the same measure.
+   * Null when it had settled nothing by then — an agent that has just arrived
+   * has not climbed, and drawing it as a climb would invent a trend.
+   */
+  previousRank: number | null;
+  /** `previousRank - rank`; positive is a climb. Null for a new entrant. */
+  movement: number | null;
+  agent: Agent;
+  volumeUsdc: number;
+  settlements: number;
+  /** Share of all settled volume on this network, for the bar width. */
+  share: number;
+};
 
-  const job = JOBS.find((j) => j.id.toLowerCase() === t.toLowerCase());
-  if (job) return { kind: "job", href: `/jobs/${job.id}${suffix}` };
+export type Leaderboard = {
+  network: Network;
+  rows: LeaderboardRow[];
+  /** Settled volume across every agent, not just the rows returned. */
+  totalUsdc: number;
+  rankedAgents: number;
+  lookbackDays: number;
+  comparedTo: string;
+  asOf: string;
+  source: "sample";
+};
 
-  const tx = TRANSACTIONS.find((x) => x.id === t.toUpperCase());
-  if (tx) return { kind: "transaction", href: `/transactions${suffix}${joiner}q=${encodeURIComponent(tx.id)}` };
-
-  return { kind: "search", href: `/agents${suffix}${joiner}q=${encodeURIComponent(t)}` };
+/** Confirmed escrow released to each agent up to `untilMs`. */
+function settledByAgent(network: Network, untilMs: number): Map<string, { volume: number; count: number }> {
+  const out = new Map<string, { volume: number; count: number }>();
+  for (const t of TRANSACTIONS) {
+    if (t.network !== network || t.kind !== "escrow-release" || t.status !== "confirmed" || !t.agentId) continue;
+    if (Date.parse(t.timestamp) > untilMs) continue;
+    const row = out.get(t.agentId) ?? { volume: 0, count: 0 };
+    row.volume = money(row.volume + t.amountUsdc);
+    row.count += 1;
+    out.set(t.agentId, row);
+  }
+  return out;
 }
+
+/** Ties break on settlement count, then name, so the order is stable between
+ *  the two rankings and a tie never reads as movement. */
+function rankAgents(totals: Map<string, { volume: number; count: number }>): string[] {
+  return [...totals.entries()]
+    .filter(([, v]) => v.volume > 0)
+    .sort(
+      ([aId, a], [bId, b]) =>
+        b.volume - a.volume ||
+        b.count - a.count ||
+        (AGENTS_BY_ID.get(aId)?.name ?? aId).localeCompare(AGENTS_BY_ID.get(bId)?.name ?? bId),
+    )
+    .map(([id]) => id);
+}
+
+export async function fetchLeaderboard(
+  network: Network = DEFAULT_NETWORK,
+  limit = 8,
+): Promise<Leaderboard> {
+  const cutoff = NOW - LEADERBOARD_LOOKBACK_DAYS * DAY;
+  const now = settledByAgent(network, NOW);
+  const then = settledByAgent(network, cutoff);
+
+  const order = rankAgents(now);
+  const previousOrder = rankAgents(then);
+  const totalUsdc = money([...now.values()].reduce((s, v) => s + v.volume, 0));
+
+  const rows: LeaderboardRow[] = order.slice(0, limit).map((id, i) => {
+    const previousIndex = previousOrder.indexOf(id);
+    const previousRank = previousIndex === -1 ? null : previousIndex + 1;
+    const stats = now.get(id)!;
+    return {
+      rank: i + 1,
+      previousRank,
+      movement: previousRank == null ? null : previousRank - (i + 1),
+      agent: AGENTS_BY_ID.get(id)!,
+      volumeUsdc: stats.volume,
+      settlements: stats.count,
+      share: totalUsdc ? stats.volume / totalUsdc : 0,
+    };
+  });
+
+  return respond({
+    network,
+    rows,
+    totalUsdc,
+    rankedAgents: order.length,
+    lookbackDays: LEADERBOARD_LOOKBACK_DAYS,
+    comparedTo: iso(cutoff),
+    asOf: SNAPSHOT,
+    source: "sample",
+  });
+}
+
+/* ── settled volume over time ──────────────────────────────────────────── */
+
+export type VolumePoint = {
+  /** UTC midnight the bucket opens at. */
+  day: string;
+  releasedUsdc: number;
+  settlements: number;
+  /** Running total through the end of this bucket. */
+  cumulativeUsdc: number;
+};
+
+export type VolumeSeries = {
+  network: Network;
+  points: VolumePoint[];
+  /** Largest single day, which is what the bar axis is scaled to. */
+  peakUsdc: number;
+  totalUsdc: number;
+  settlements: number;
+  /** Days that saw at least one settlement. The gaps are the point. */
+  activeDays: number;
+  asOf: string;
+  source: "sample";
+};
+
+/**
+ * Daily settled volume across the capture window. Buckets run from the first
+ * settlement's UTC day to the capture day, gaps included — a chart that drops
+ * empty days would compress a quiet week into a dense-looking one.
+ */
+export async function fetchVolumeSeries(network: Network = DEFAULT_NETWORK): Promise<VolumeSeries> {
+  const settled = TRANSACTIONS.filter(
+    (t) => t.network === network && t.kind === "escrow-release" && t.status === "confirmed",
+  );
+
+  if (settled.length === 0) {
+    return respond({
+      network,
+      points: [],
+      peakUsdc: 0,
+      totalUsdc: 0,
+      settlements: 0,
+      activeDays: 0,
+      asOf: SNAPSHOT,
+      source: "sample",
+    });
+  }
+
+  const dayStart = (ms: number) => {
+    const d = new Date(ms);
+    return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
+  };
+  const first = dayStart(Math.min(...settled.map((t) => Date.parse(t.timestamp))));
+  const last = dayStart(NOW);
+
+  const points: VolumePoint[] = [];
+  let cumulative = 0;
+  for (let d = first; d <= last; d += DAY) {
+    const inDay = settled.filter((t) => {
+      const at = Date.parse(t.timestamp);
+      return at >= d && at < d + DAY;
+    });
+    const released = money(inDay.reduce((s, t) => s + t.amountUsdc, 0));
+    cumulative = money(cumulative + released);
+    points.push({ day: iso(d), releasedUsdc: released, settlements: inDay.length, cumulativeUsdc: cumulative });
+  }
+
+  return respond({
+    network,
+    points,
+    peakUsdc: Math.max(...points.map((p) => p.releasedUsdc)),
+    totalUsdc: cumulative,
+    settlements: settled.length,
+    activeDays: points.filter((p) => p.settlements > 0).length,
+    asOf: SNAPSHOT,
+    source: "sample",
+  });
+}
+
+/* ── settlement feed ───────────────────────────────────────────────────── */
+
+/** The two transaction kinds that close a job out. Funding a job opens it. */
+export const SETTLEMENT_KINDS: readonly TxKind[] = ["escrow-release", "escrow-refund"];
+
+export type Settlement = {
+  transaction: Transaction;
+  job: Job | null;
+  agent: Agent | null;
+};
+
+/**
+ * Recent settlements, newest first — the source for `/feed.json`. Confirmed
+ * only: a rejected release moved no money, so it did not settle anything. The
+ * rejected rows are still on the transactions page, where they belong.
+ */
+export async function fetchSettlements(network: Network = DEFAULT_NETWORK, limit = 40): Promise<Settlement[]> {
+  return respond(
+    TRANSACTIONS.filter(
+      (t) => t.network === network && t.status === "confirmed" && SETTLEMENT_KINDS.includes(t.kind),
+    )
+      .slice(0, Math.max(1, Math.min(limit, MAX_PAGE_SIZE)))
+      .map((transaction) => ({
+        transaction,
+        job: transaction.jobId ? JOBS_BY_ID.get(transaction.jobId) ?? null : null,
+        agent: transaction.agentId ? AGENTS_BY_ID.get(transaction.agentId) ?? null : null,
+      })),
+  );
+}
+
+/* ── global search ─────────────────────────────────────────────────────── */
+
+export type SearchHit = {
+  kind: "agent" | "job" | "transaction";
+  id: string;
+  href: string;
+  title: string;
+  subtitle: string;
+  /** Right-aligned trailing detail — a status, an amount, a timestamp. */
+  meta: string;
+  network: Network;
+  /** The term named this record outright rather than merely appearing in it. */
+  exact: boolean;
+};
+
+export type SearchResults = {
+  term: string;
+  network: Network;
+  hits: SearchHit[];
+  /** Matches beyond the returned ones, so the palette can say so honestly. */
+  more: number;
+};
+
+/** Query-string suffix that keeps a non-default network on a link. */
+function netSuffix(network: Network): string {
+  return network === DEFAULT_NETWORK ? "" : `?network=${network}`;
+}
+
+const jobHit = (j: Job, exact: boolean): SearchHit => ({
+  kind: "job",
+  id: j.id,
+  href: `/jobs/${j.id}${netSuffix(j.network)}`,
+  title: j.title,
+  subtitle: `${j.id} · ${j.skillsRequired.join(" · ")}`,
+  meta: `${j.status} · ${j.budgetUsdc} USDC`,
+  network: j.network,
+  exact,
+});
+
+const agentHit = (a: Agent, exact: boolean): SearchHit => ({
+  kind: "agent",
+  id: a.id,
+  href: `/agents/${a.id}${netSuffix(a.network)}`,
+  title: a.name,
+  subtitle: `${a.handle} · ${a.skills.join(" · ")}`,
+  meta: `${a.status} · ${a.stats.won} won`,
+  network: a.network,
+  exact,
+});
+
+const txHit = (t: Transaction, exact: boolean): SearchHit => ({
+  kind: "transaction",
+  id: t.id,
+  href: `/transactions/${t.id}${netSuffix(t.network)}`,
+  title: `${t.kind.replace("escrow-", "escrow ")} · ${t.amountUsdc} USDC`,
+  subtitle: `${t.id.slice(0, 24)}… · round ${t.round}`,
+  meta: t.status,
+  network: t.network,
+  exact,
+});
+
+/**
+ * One search across all three record types.
+ *
+ * Exact identifier matches come first and are searched across BOTH networks —
+ * pasting an id you were given should never depend on which network toggle you
+ * happen to be on. Everything after that is a text match inside the selected
+ * network, capped per kind so no single type can crowd the other two out.
+ */
+export async function searchAll(
+  term: string,
+  network: Network = DEFAULT_NETWORK,
+  perKind = 4,
+): Promise<SearchResults> {
+  const t = term.trim();
+  if (!t) return respond({ term: t, network, hits: [], more: 0 });
+
+  const lower = t.toLowerCase();
+  const seen = new Set<string>();
+  const hits: SearchHit[] = [];
+  const add = (hit: SearchHit) => {
+    if (seen.has(hit.id)) return;
+    seen.add(hit.id);
+    hits.push(hit);
+  };
+
+  const exactAgent = AGENTS.find(
+    (a) => a.id.toLowerCase() === lower || a.handle.toLowerCase() === lower || a.address === t,
+  );
+  if (exactAgent) add(agentHit(exactAgent, true));
+
+  const exactJob = JOBS.find((j) => j.id.toLowerCase() === lower);
+  if (exactJob) add(jobHit(exactJob, true));
+
+  const exactTx = TRANSACTIONS.find((x) => x.id === t.toUpperCase());
+  if (exactTx) add(txHit(exactTx, true));
+
+  const agentRows = AGENTS.filter(
+    (a) => a.network === network && matches([a.name, a.handle, a.id, a.address, ...a.skills], t),
+  );
+  const jobRows = JOBS.filter(
+    (j) => j.network === network && matches([j.title, j.id, j.requester, ...j.skillsRequired], t),
+  );
+  const txRows = TRANSACTIONS.filter(
+    (x) =>
+      x.network === network &&
+      matches([x.id, x.from, x.to, x.jobId ?? "", x.agentId ?? "", x.kind, x.x402?.requestId ?? ""], t),
+  );
+
+  for (const a of agentRows.slice(0, perKind)) add(agentHit(a, false));
+  for (const j of jobRows.slice(0, perKind)) add(jobHit(j, false));
+  for (const x of txRows.slice(0, perKind)) add(txHit(x, false));
+
+  const more =
+    Math.max(0, agentRows.length - perKind) +
+    Math.max(0, jobRows.length - perKind) +
+    Math.max(0, txRows.length - perKind);
+  return respond({ term: t, network, hits, more });
+}
+
+/* Identifier resolution used to live here as `resolveQuery`, feeding a header
+   input that could only ever land you on one page. `searchAll` above does the
+   same resolution — exact ids first, across both networks — and then shows the
+   text matches beside it, so it replaced rather than duplicated it. */
 
 /** Route lists for the sitemap. */
 export const ALL_AGENT_IDS = AGENTS.map((a) => a.id);

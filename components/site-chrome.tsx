@@ -2,9 +2,10 @@
 
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { ArrowUpRight, CornerDownLeft, Search } from "lucide-react";
-import { useEffect, useState } from "react";
+import { ArrowUpRight, Search } from "lucide-react";
+import { useEffect, useSyncExternalStore } from "react";
 import { Mark } from "@/components/mark";
+import { OPEN_SEARCH_EVENT } from "@/components/command-palette";
 import {
   DATASET,
   DEFAULT_NETWORK,
@@ -12,7 +13,6 @@ import {
   USDC_ASSET_ID,
   explorerBase,
   isNetwork,
-  resolveQuery,
   type Network,
 } from "@/lib/explorer-data";
 import { absTime } from "@/lib/format";
@@ -25,6 +25,8 @@ const NAV = [
   { href: "/agents", label: "Agents" },
   { href: "/jobs", label: "Jobs" },
   { href: "/transactions", label: "Transactions" },
+  // The only page backed by real chain data rather than the sample set.
+  { href: "/live", label: "Live" },
 ];
 
 function useNetwork(): Network {
@@ -105,7 +107,7 @@ export function SiteHeader() {
         </nav>
 
         <div className="ml-auto flex flex-none items-center gap-2">
-          <ResolverSearch network={network} />
+          <SearchTrigger />
           <div
             className="flex items-center rounded-lg border p-0.5"
             role="group"
@@ -136,51 +138,43 @@ export function SiteHeader() {
 }
 
 /**
- * One search box that knows what you pasted. An agent id, handle, job id,
- * address or transaction id goes straight to the page that owns it; anything
- * else falls through to a text search. Sits in the layout so it is on every
- * route rather than three of five.
+ * Opens the command palette. It is a button rather than an input because the
+ * search itself is a dialog: one place that answers for agents, jobs and
+ * transactions at once, reachable with ⌘K from anywhere including this button.
+ *
+ * The shortcut is spelled out on the control rather than left to be discovered.
  */
-function ResolverSearch({ network }: { network: Network }) {
-  const router = useRouter();
-  const [term, setTerm] = useState("");
-  const resolution = term.trim() ? resolveQuery(term, network) : null;
+function SearchTrigger() {
+  // `navigator` does not exist during the server render, and printing ⌘ to a
+  // Windows reader is worse than printing nothing. `useSyncExternalStore` is
+  // the one hook that models "a value the server cannot know": it renders the
+  // server snapshot, then swaps in the client's on hydration without a mismatch.
+  const mac = useSyncExternalStore(
+    () => () => {},
+    () => /Mac|iPhone|iPad/.test(window.navigator.platform || window.navigator.userAgent),
+    () => false,
+  );
+
+  const fire = () => window.dispatchEvent(new Event(OPEN_SEARCH_EVENT));
 
   return (
-    <form
-      onSubmit={(e) => {
-        e.preventDefault();
-        if (!resolution) return;
-        router.push(resolution.href);
-        setTerm("");
-      }}
-      className="relative hidden md:block"
+    <button
+      type="button"
+      onClick={fire}
+      aria-label="Search agents, jobs and transactions"
+      aria-keyshortcuts="Meta+K Control+K"
+      className="flex h-8 items-center gap-2 rounded-lg border bg-transparent px-2.5 text-[12.5px] transition-colors hover:border-[var(--accent)]"
+      style={{ borderColor: "var(--line-strong)", color: "var(--ink-3)" }}
     >
-      <Search
-        size={13.5}
-        strokeWidth={2}
-        className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2"
-        style={{ color: "var(--ink-3)" }}
-      />
-      <input
-        value={term}
-        onChange={(e) => setTerm(e.target.value)}
-        placeholder="Agent, job, address or tx id"
-        aria-label="Search the explorer by identifier"
-        spellCheck={false}
-        className="h-8 w-[228px] rounded-lg border bg-transparent pl-8 pr-8 text-[12.5px] outline-none transition-colors placeholder:text-[var(--ink-3)] focus:border-[var(--accent)]"
+      <Search size={13.5} strokeWidth={2} aria-hidden />
+      <span className="hidden md:inline">Search agents, jobs, transactions</span>
+      <kbd
+        className="ml-1 hidden rounded border px-1 font-sans text-[10.5px] md:inline"
         style={{ borderColor: "var(--line-strong)" }}
-      />
-      {resolution && (
-        <span
-          className="pointer-events-none absolute right-2 top-1/2 flex -translate-y-1/2 items-center gap-1 text-[10.5px] font-medium uppercase tracking-wide"
-          style={{ color: resolution.kind === "search" ? "var(--ink-3)" : "var(--accent-deep)" }}
-        >
-          {resolution.kind === "search" ? "" : resolution.kind}
-          <CornerDownLeft size={11} strokeWidth={2.4} />
-        </span>
-      )}
-    </form>
+      >
+        {mac ? "⌘K" : "Ctrl K"}
+      </kbd>
+    </button>
   );
 }
 
@@ -268,6 +262,9 @@ export function SiteFooter() {
           <Link href={withNetwork("/transactions", network)} className="hover:text-[var(--accent-deep)]">
             Transactions
           </Link>
+          <a href="/feed.json" className="hover:text-[var(--accent-deep)]">
+            JSON feed
+          </a>
           <a href="https://docs.ripar.io" className="hover:text-[var(--accent-deep)]">
             Docs
           </a>

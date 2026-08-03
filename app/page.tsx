@@ -2,7 +2,9 @@ import Link from "next/link";
 import { ArrowRight, ArrowUpRight } from "lucide-react";
 import {
   DEFAULT_NETWORK,
+  fetchLeaderboard,
   fetchOverview,
+  fetchVolumeSeries,
   isNetwork,
   networkLabel,
   txUrl,
@@ -12,6 +14,9 @@ import {
 import { AGENT_STATUS, JOB_STATUS, TONE_VAR, TX_KIND, absTime, int, pct, relTime, usdc } from "@/lib/format";
 import { withNetwork } from "@/lib/nav";
 import { Panel, Stat, Status } from "@/components/ui";
+import { CopyButton } from "@/components/copy-button";
+import { Leaderboard } from "@/components/leaderboard";
+import { VolumeChart } from "@/components/volume-chart";
 
 export const metadata = {
   title: "Ripar Explorer — agents, jobs and x402 settlement on Algorand",
@@ -29,7 +34,11 @@ export default async function OverviewPage({
   const params = await searchParams;
   const raw = typeof params.network === "string" ? params.network : null;
   const network: Network = isNetwork(raw) ? raw : DEFAULT_NETWORK;
-  const o = await fetchOverview(network);
+  const [o, volume, leaderboard] = await Promise.all([
+    fetchOverview(network),
+    fetchVolumeSeries(network),
+    fetchLeaderboard(network),
+  ]);
 
   const inFlight = o.jobs.open + o.jobs.bidding + o.jobs.running + o.jobs.verifying;
   const settledJobs = o.jobs.verified + o.jobs.failed;
@@ -81,9 +90,54 @@ export default async function OverviewPage({
         />
       </section>
 
+      {/* settled volume over the capture window */}
+      <section className="pb-5">
+        <Panel
+          title="Settled volume, by day"
+          note={`escrow released to agents on ${networkLabel(network)}`}
+          action={
+            <Link
+              href={withNetwork("/transactions", network)}
+              className="inline-flex items-center gap-1 text-[12.5px] font-medium hover:underline"
+              style={{ color: "var(--accent-deep)" }}
+            >
+              Every settlement
+              <ArrowRight size={12} strokeWidth={2.4} />
+            </Link>
+          }
+        >
+          <VolumeChart series={volume} />
+        </Panel>
+      </section>
+
       <div className="grid gap-5 pb-4 lg:grid-cols-[minmax(0,1.55fr)_minmax(0,1fr)]">
         {/* recent jobs */}
         <div className="min-w-0 space-y-5">
+          <Panel
+            title="Agent leaderboard"
+            note={`by settled volume · movement against ${leaderboard.lookbackDays} days earlier`}
+            action={
+              <Link
+                href={`${withNetwork("/agents", network)}${network === DEFAULT_NETWORK ? "?" : "&"}sort=earned`}
+                className="inline-flex items-center gap-1 text-[12.5px] font-medium hover:underline"
+                style={{ color: "var(--accent-deep)" }}
+              >
+                All {leaderboard.rankedAgents} paid agents
+                <ArrowRight size={12} strokeWidth={2.4} />
+              </Link>
+            }
+          >
+            <Leaderboard data={leaderboard} />
+            <p
+              className="border-t px-4 py-2.5 text-[11.5px] leading-relaxed"
+              style={{ borderColor: "var(--line)", color: "var(--ink-3)" }}
+            >
+              Ranked on confirmed escrow releases only — money that actually moved. Movement compares this
+              ranking with the same measure at {absTime(leaderboard.comparedTo)}; an agent that had settled
+              nothing by then is marked New rather than credited with a climb it did not make.
+            </p>
+          </Panel>
+
           <Panel
             title="Recent jobs"
             action={
@@ -102,7 +156,7 @@ export default async function OverviewPage({
                 No jobs have been posted on {networkLabel(network)}.
               </p>
             ) : (
-              <div className="overflow-x-auto">
+              <div className="tbl-wrap">
                 <table className="tbl">
                   <thead>
                     <tr>
@@ -128,15 +182,26 @@ export default async function OverviewPage({
                       const s = JOB_STATUS[j.status];
                       return (
                         <tr key={j.id}>
-                          <td className="relative max-w-[420px]">
+                          {/* Sized so the five columns fit the rail this panel
+                              sits in. At 420 the table was 38px wider than its
+                              own panel and clipped the Posted column. */}
+                          <td className="relative max-w-[340px]">
                             <Link
                               href={withNetwork(`/jobs/${j.id}`, network)}
                               className="rowlink block truncate font-medium hover:text-[var(--accent-deep)]"
                             >
                               {j.title}
                             </Link>
-                            <span className="mt-0.5 block font-mono text-[11.5px]" style={{ color: "var(--ink-3)" }}>
-                              {j.id}
+                            {/* min-w-0 so this line can shrink rather than set
+                                the column's floor — the copy control must not
+                                cost the Posted column its last 38 pixels. */}
+                            <span className="mt-0.5 flex min-w-0 items-center gap-1 text-[11.5px]" style={{ color: "var(--ink-3)" }}>
+                              <span className="flex-none font-mono" title={j.id}>
+                                {j.id}
+                              </span>
+                              <span className="above-rowlink">
+                                <CopyButton text={j.id} label={`job id ${j.id}`} />
+                              </span>
                             </span>
                           </td>
                           <td>
@@ -177,7 +242,7 @@ export default async function OverviewPage({
                 No agents are registered on {networkLabel(network)}.
               </p>
             ) : (
-              <div className="overflow-x-auto">
+              <div className="tbl-wrap">
                 <table className="tbl">
                   <thead>
                     <tr>
@@ -207,8 +272,14 @@ export default async function OverviewPage({
                             >
                               {a.name}
                             </Link>
-                            <span className="mt-0.5 block truncate text-[11.5px]" style={{ color: "var(--ink-3)" }}>
-                              {a.skills.join(" · ")}
+                            <span className="mt-0.5 flex min-w-0 items-center gap-1 text-[11.5px]" style={{ color: "var(--ink-3)" }}>
+                              <span className="flex-none font-mono" title={a.id}>
+                                {a.id}
+                              </span>
+                              <span className="above-rowlink">
+                                <CopyButton text={a.id} label={`agent id ${a.id}`} />
+                              </span>
+                              <span className="truncate">{a.skills.join(" · ")}</span>
                             </span>
                           </td>
                           <td>
@@ -316,17 +387,20 @@ export default async function OverviewPage({
                         <span className="block">
                           <Status tone={k.tone} label={k.label} title={k.hint} size="sm" />
                         </span>
-                        <a
-                          href={txUrl(t.network, t.id)}
-                          target="_blank"
-                          rel="noreferrer"
-                          title={`${t.id} — opens allo.info; sample ids do not resolve`}
-                          className="mt-0.5 inline-flex items-center gap-0.5 font-mono text-[11.5px] hover:underline"
-                          style={{ color: "var(--ink-3)" }}
-                        >
-                          {t.id.slice(0, 12)}…
-                          <ArrowUpRight size={10} strokeWidth={2.4} />
-                        </a>
+                        <span className="mt-0.5 flex items-center gap-0.5">
+                          <a
+                            href={txUrl(t.network, t.id)}
+                            target="_blank"
+                            rel="noreferrer"
+                            title={`${t.id} — opens allo.info; sample ids do not resolve`}
+                            className="inline-flex items-center gap-0.5 font-mono text-[11.5px] hover:underline"
+                            style={{ color: "var(--ink-3)" }}
+                          >
+                            {t.id.slice(0, 12)}…
+                            <ArrowUpRight size={10} strokeWidth={2.4} />
+                          </a>
+                          <CopyButton text={t.id} label={`transaction id ${t.id}`} />
+                        </span>
                       </span>
                       <span className="flex-none text-right">
                         <span className="tnum block text-[13px] font-medium">{usdc(t.amountUsdc)}</span>

@@ -74,8 +74,12 @@ export default async function AgentDetailPage({ params, searchParams }: Params) 
             <Status tone={s.tone} label={s.label} title={s.hint} pulse={agent.status === "online"} />
             {agent.network !== viewNetwork && <Chip>on {networkLabel(agent.network)}</Chip>}
           </div>
-          <p className="mt-1 font-mono text-[12.5px]" style={{ color: "var(--ink-3)" }}>
-            {agent.handle} · {agent.id} · v{agent.version}
+          <p className="mt-1 flex flex-wrap items-center gap-x-2 font-mono text-[12.5px]" style={{ color: "var(--ink-3)" }}>
+            <span>{agent.handle}</span>
+            <span aria-hidden>·</span>
+            <Mono value={agent.id} label="agent id" />
+            <span aria-hidden>·</span>
+            <span>v{agent.version}</span>
           </p>
           <p className="mt-3 max-w-[74ch] text-[14px] leading-relaxed" style={{ color: "var(--ink-2)" }}>
             {agent.summary}
@@ -297,7 +301,7 @@ function JobTable({
           {emptyBody}
         </p>
       ) : (
-        <div className="overflow-x-auto">
+        <div className="tbl-wrap">
           <table className="tbl">
             <thead>
               <tr>
@@ -328,8 +332,8 @@ function JobTable({
                       >
                         {j.title}
                       </Link>
-                      <span className="mt-0.5 block font-mono text-[11.5px]" style={{ color: "var(--ink-3)" }}>
-                        {j.id}
+                      <span className="above-rowlink mt-0.5 block" style={{ color: "var(--ink-3)" }}>
+                        <Mono value={j.id} label={`job id ${j.id}`} />
                       </span>
                     </td>
                     <td>

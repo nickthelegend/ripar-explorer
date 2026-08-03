@@ -1,7 +1,6 @@
 import type { MetadataRoute } from "next";
 import { ALL_AGENT_IDS, ALL_JOB_IDS, SNAPSHOT } from "@/lib/explorer-data";
-
-const SITE = "https://explorer.ripar.io";
+import { SITE } from "@/lib/site";
 
 /**
  * Detail pages are listed individually — an explorer whose records are not

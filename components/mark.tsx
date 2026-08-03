@@ -44,6 +44,27 @@ const BLADES = (() => {
   return tris.map((t) => `M${fit(t[0])} L${fit(t[1])} L${fit(t[2])} Z`);
 })();
 
+/**
+ * The same fan as standalone SVG markup, for contexts that cannot mount a React
+ * component — the OG image renderer takes an `<img>`, not JSX children. Built
+ * from the same BLADES/STOPS above so the social card and the navbar can never
+ * show two different marks.
+ */
+export function markSvg(size = 96): string {
+  const gradients = STOPS.map(
+    ([k, a, b]) =>
+      `<linearGradient id="${k}" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${a}"/><stop offset="1" stop-color="${b}"/></linearGradient>`,
+  ).join("");
+  const paths = BLADES.map((d, i) => `<path d="${d}" fill="url(#${TONES[i]})"/>`).join("");
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 48 48"><defs>${gradients}</defs>${paths}</svg>`;
+}
+
+/** Data URI form, which is the only way an OG image can carry it: the renderer
+ *  has no network and refuses to fetch anything. */
+export function markDataUri(size = 96): string {
+  return `data:image/svg+xml;base64,${Buffer.from(markSvg(size), "utf8").toString("base64")}`;
+}
+
 export function Mark({ size = 26, className }: { size?: number; className?: string }) {
   const p = "ripar-fan";
   return (

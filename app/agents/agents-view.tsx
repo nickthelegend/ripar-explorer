@@ -4,10 +4,19 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { AGENT_SORTS, fetchAgents, networkLabel, type Agent, type AgentStatus } from "@/lib/explorer-data";
 import { AGENT_STATUS, durationMin, pct, relTime, shortAddr, usdc } from "@/lib/format";
-import { buildHref, readView, withNetwork } from "@/lib/nav";
+import { buildHref, readView, toQuery, withNetwork } from "@/lib/nav";
 import { useResource } from "@/lib/use-resource";
-import { FilterChips, Pagination, PlainTh, SearchInput, SortTh, type ChipDef } from "@/components/controls";
+import {
+  ActiveFilters,
+  FilterChips,
+  Pagination,
+  PlainTh,
+  SearchInput,
+  SortTh,
+  type ChipDef,
+} from "@/components/controls";
 import { EmptyState, ErrorState, Panel, Status, TableSkeleton } from "@/components/ui";
+import { CopyButton, Mono } from "@/components/copy-button";
 
 const DEFAULTS = { sort: "won" };
 const PATH = "/agents";
@@ -21,12 +30,14 @@ export function AgentsView() {
 
   // Keyed on the full query, so the fetch reruns exactly when the URL changes
   // and never because a parent re-rendered.
-  const { data, error, loading } = useResource(() => fetchAgents(view), JSON.stringify(view));
+  const { data, error, loading } = useResource(() => fetchAgents(toQuery(view)), JSON.stringify(view));
 
   // Chip counts come from the unfiltered network slice, so a chip always tells
   // you how many rows it would reveal rather than how many are already shown.
+  // `pageSize: "all"` asks for exactly that and says so — the old `100` was a
+  // number that happened to agree with the clamp.
   const counts = useResource(
-    () => fetchAgents({ network: view.network, pageSize: 100 }),
+    () => fetchAgents({ network: view.network, pageSize: "all" }),
     `counts:${view.network}`,
   );
   const chips: ChipDef[] = STATUS_ORDER.map((s) => ({
@@ -54,6 +65,7 @@ export function AgentsView() {
         >
           <SearchInput ctx={ctx} placeholder="Search name, handle, skill or address" />
           <FilterChips ctx={ctx} options={chips} />
+          <ActiveFilters ctx={ctx} noun="agents" />
         </div>
 
         {error ? (
@@ -81,7 +93,7 @@ export function AgentsView() {
             }
             action={
               <Link
-                href={buildHref(PATH, view, { q: "", status: [] }, DEFAULTS)}
+                href={buildHref(PATH, view, { q: "", status: [], skills: [], min: null, max: null }, DEFAULTS)}
                 className="rounded-md border px-2.5 py-1 text-[12.5px] font-medium"
                 style={{ borderColor: "var(--line-strong)" }}
               >
@@ -91,7 +103,7 @@ export function AgentsView() {
           />
         ) : data ? (
           <>
-            <div className="overflow-x-auto" style={{ opacity: loading ? 0.55 : 1, transition: "opacity 0.15s" }}>
+            <div className="tbl-wrap" style={{ opacity: loading ? 0.55 : 1, transition: "opacity 0.15s" }}>
               <table className="tbl">
                 <thead>
                   <tr>
@@ -149,15 +161,23 @@ function AgentRow({ agent, network }: { agent: Agent; network: Agent["network"] 
         >
           {agent.name}
         </Link>
-        <span className="mt-0.5 block truncate text-[11.5px]" style={{ color: "var(--ink-3)" }}>
-          <span className="font-mono">{agent.handle}</span> · {agent.skills.join(" · ")}
+        <span className="mt-0.5 flex min-w-0 items-center gap-1 text-[11.5px]" style={{ color: "var(--ink-3)" }}>
+          <span className="flex-none font-mono" title={agent.id}>
+            {agent.id}
+          </span>
+          <span className="above-rowlink">
+            <CopyButton text={agent.id} label={`agent id ${agent.id}`} />
+          </span>
+          <span className="truncate">
+            <span className="font-mono">{agent.handle}</span> · {agent.skills.join(" · ")}
+          </span>
         </span>
       </td>
       <td>
         <Status tone={s.tone} label={s.label} title={agent.statusNote ?? s.hint} size="sm" pulse={agent.status === "online"} />
       </td>
-      <td className="font-mono text-[12px]" style={{ color: "var(--ink-2)" }}>
-        <span title={agent.address}>{shortAddr(agent.address, 8, 6)}</span>
+      <td style={{ color: "var(--ink-2)" }}>
+        <Mono value={agent.address} display={shortAddr(agent.address, 8, 6)} label={`address of ${agent.name}`} />
       </td>
       <td className="num tnum">
         {agent.stats.won}

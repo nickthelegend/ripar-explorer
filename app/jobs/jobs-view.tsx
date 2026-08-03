@@ -2,12 +2,23 @@
 
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { JOB_SORTS, fetchJobs, networkLabel, type Job, type JobStatus, type Network } from "@/lib/explorer-data";
+import { JOB_SORTS, fetchJobFacets, fetchJobs, networkLabel, type Job, type JobStatus, type Network } from "@/lib/explorer-data";
 import { ESCROW_STATE, JOB_STATUS, relTime, usdc } from "@/lib/format";
-import { buildHref, readView, withNetwork } from "@/lib/nav";
+import { buildHref, readView, toQuery, withNetwork } from "@/lib/nav";
 import { useResource } from "@/lib/use-resource";
-import { FilterChips, Pagination, PlainTh, SearchInput, SortTh, type ChipDef } from "@/components/controls";
+import {
+  ActiveFilters,
+  BudgetRange,
+  FilterChips,
+  Pagination,
+  PlainTh,
+  SearchInput,
+  SkillFilter,
+  SortTh,
+  type ChipDef,
+} from "@/components/controls";
 import { EmptyState, ErrorState, Panel, Status, TableSkeleton } from "@/components/ui";
+import { CopyButton } from "@/components/copy-button";
 
 const DEFAULTS = { sort: "created" };
 const PATH = "/jobs";
@@ -20,14 +31,18 @@ export function JobsView() {
   const view = readView(params, DEFAULTS.sort, JOB_SORTS);
   const ctx = { pathname: PATH, view, defaults: DEFAULTS };
 
-  const { data, error, loading } = useResource(() => fetchJobs(view), JSON.stringify(view));
-  const counts = useResource(() => fetchJobs({ network: view.network, pageSize: 100 }), `counts:${view.network}`);
+  const { data, error, loading } = useResource(() => fetchJobs(toQuery(view)), JSON.stringify(view));
+
+  // Facets are measured across the whole network slice, so a chip always says
+  // how many rows it would reveal rather than how many are already on screen —
+  // and the skill list and budget bounds come from the same single read.
+  const facets = useResource(() => fetchJobFacets(view.network), `facets:${view.network}`);
 
   const chips: ChipDef[] = STATUS_ORDER.map((s) => ({
     value: s,
     label: JOB_STATUS[s].label,
     tone: JOB_STATUS[s].tone,
-    count: counts.data?.data.filter((j) => j.status === s).length ?? 0,
+    count: facets.data?.status.find((f) => f.value === s)?.count ?? 0,
   }));
 
   return (
@@ -37,7 +52,8 @@ export function JobsView() {
         <p className="mt-2 max-w-[74ch] text-[14px] leading-relaxed" style={{ color: "var(--ink-2)" }}>
           The board of work on {networkLabel(view.network)}. A job is posted with its budget in escrow,
           collects bids, is awarded to one agent, and settles only when verification passes. Filter by any
-          stage of that lifecycle — including the ones that did not end well.
+          stage of that lifecycle — including the ones that did not end well — by the skills a job asks
+          for, or by what it pays. Every filter is in the address, so the view you are looking at is a link.
         </p>
       </header>
 
@@ -48,6 +64,11 @@ export function JobsView() {
         >
           <SearchInput ctx={ctx} placeholder="Search title, job id, skill or requester" />
           <FilterChips ctx={ctx} options={chips} />
+          <div className="flex w-full basis-full flex-wrap items-center gap-x-4 gap-y-2">
+            <SkillFilter ctx={ctx} options={facets.data?.skills ?? []} loading={facets.loading} />
+            <BudgetRange ctx={ctx} bounds={facets.data?.budget ?? null} />
+          </div>
+          <ActiveFilters ctx={ctx} noun="jobs" />
         </div>
 
         {error ? (
@@ -69,13 +90,19 @@ export function JobsView() {
           <EmptyState
             title="No jobs match this query"
             body={
+              // Name the filter that emptied the table. "No results" with four
+              // controls set is a puzzle, not an answer.
               view.q
                 ? `Nothing on ${networkLabel(view.network)} matches “${view.q}”. Job ids look like job_xxxxx.`
-                : `No job on ${networkLabel(view.network)} is at the selected stage right now.`
+                : view.min != null || view.max != null
+                  ? `No job on ${networkLabel(view.network)} falls in that budget range${view.skills.length ? " with the selected skills" : ""}. Posted budgets run from ${usdc(facets.data?.budget.min ?? 0, { compact: true })} to ${usdc(facets.data?.budget.max ?? 0, { compact: true })} USDC.`
+                  : view.skills.length
+                    ? `No job on ${networkLabel(view.network)} asks for ${view.skills.join(" or ")} at the selected stage.`
+                    : `No job on ${networkLabel(view.network)} is at the selected stage right now.`
             }
             action={
               <Link
-                href={buildHref(PATH, view, { q: "", status: [] }, DEFAULTS)}
+                href={buildHref(PATH, view, { q: "", status: [], skills: [], min: null, max: null }, DEFAULTS)}
                 className="rounded-md border px-2.5 py-1 text-[12.5px] font-medium"
                 style={{ borderColor: "var(--line-strong)" }}
               >
@@ -85,7 +112,7 @@ export function JobsView() {
           />
         ) : data ? (
           <>
-            <div className="overflow-x-auto" style={{ opacity: loading ? 0.55 : 1, transition: "opacity 0.15s" }}>
+            <div className="tbl-wrap" style={{ opacity: loading ? 0.55 : 1, transition: "opacity 0.15s" }}>
               <table className="tbl">
                 <thead>
                   <tr>
@@ -146,8 +173,14 @@ function JobRow({ job, network }: { job: Job; network: Network }) {
         >
           {job.title}
         </Link>
-        <span className="mt-0.5 block truncate text-[11.5px]" style={{ color: "var(--ink-3)" }}>
-          <span className="font-mono">{job.id}</span> · {job.skillsRequired.join(" · ")}
+        <span className="mt-0.5 flex min-w-0 items-center gap-1 text-[11.5px]" style={{ color: "var(--ink-3)" }}>
+          <span className="flex-none font-mono" title={job.id}>
+            {job.id}
+          </span>
+          <span className="above-rowlink">
+            <CopyButton text={job.id} label={`job id ${job.id}`} />
+          </span>
+          <span className="truncate">{job.skillsRequired.join(" · ")}</span>
         </span>
       </td>
       <td>

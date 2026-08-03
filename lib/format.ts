@@ -10,6 +10,8 @@ const SNAPSHOT_MS = Date.parse(SNAPSHOT);
 
 /* ── time ──────────────────────────────────────────────────────────────── */
 
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
 /**
  * Relative time, measured against the dataset snapshot rather than the wall
  * clock. Against `Date.now()` this would render differently on the server and
@@ -35,8 +37,13 @@ export function relTime(isoDate: string): string {
 export function absTime(isoDate: string): string {
   const d = new Date(isoDate);
   const pad = (n: number) => String(n).padStart(2, "0");
-  const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-  return `${d.getUTCDate()} ${months[d.getUTCMonth()]} ${d.getUTCFullYear()}, ${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())} UTC`;
+  return `${d.getUTCDate()} ${MONTHS[d.getUTCMonth()]} ${d.getUTCFullYear()}, ${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())} UTC`;
+}
+
+/** `28 Jul`, for axis ticks where the year is already established by context. */
+export function shortDate(isoDate: string): string {
+  const d = new Date(isoDate);
+  return `${d.getUTCDate()} ${MONTHS[d.getUTCMonth()]}`;
 }
 
 export function durationMin(minutes: number | null): string {
