@@ -20,7 +20,7 @@ export const REGISTRIES: Record<
   { appId: number; name: string; role: string }
 > = {
   identity: {
-    appId: 768_570_170,
+    appId: 768_571_941,
     name: "IdentityRegistry",
     role: "Who an agent is: id, domain and controlling address.",
   },
@@ -31,12 +31,12 @@ export const REGISTRIES: Record<
     // This one takes the transfer itself, accept_feedback(axfer, …), and reads
     // the amount and id off a transaction the AVM has already validated, so
     // every credit here is backed by money that actually moved.
-    appId: 768_570_171,
+    appId: 768_571_942,
     name: "ReputationRegistry",
     role: "What an agent has been paid for, read from the settling transfer itself.",
   },
   validation: {
-    appId: 768_570_174,
+    appId: 768_571_946,
     name: "ValidationRegistry",
     role: "The job board and the verdict on each delivered result.",
   },
@@ -54,6 +54,32 @@ export const BOX_PREFIX = {
   scores: "sc_",
   countedPayments: "pd_",
   jobs: "jb_",
+  /**
+   * ValidationRegistry escrow: `es_` + uint64 job id, value a bare uint64 of
+   * base units actually held. Kept out of the `Job` struct on purpose — a
+   * budget is what the client says the work is worth, escrow is what they have
+   * actually handed over, and collapsing the two would let a page report an
+   * unfunded job as funded. An absent box means nothing is held.
+   */
+  escrow: "es_",
+} as const;
+
+/**
+ * The asset the ReputationRegistry counts, read from its own `usdc_asset`
+ * global at bootstrap and repeated here so a page can name it without a call.
+ *
+ * It is NOT circulating TestNet USDC (10458941). It is `rUSDC`, six decimals,
+ * minted for this deployment because the TestNet USDC faucet is behind a login
+ * and an unfunded settlement asset would have meant no settlements to read at
+ * all. The substitution is deliberate; every page that shows an amount says
+ * `rUSDC` rather than `USDC` so the figure is never mistaken for the real
+ * thing.
+ */
+export const SETTLEMENT_ASSET = {
+  id: 768_547_363,
+  unitName: "rUSDC",
+  name: "Ripar Test USDC",
+  decimals: 6,
 } as const;
 
 /* ── independent verification ──────────────────────────────────────────── */
@@ -69,3 +95,17 @@ export const peraApp = (appId: number) => `${PERA_TESTNET}/application/${appId}/
 export const peraAddress = (address: string) => `${PERA_TESTNET}/address/${address}/`;
 export const peraTx = (txId: string) => `${PERA_TESTNET}/tx/${txId}/`;
 export const peraBlock = (round: number) => `${PERA_TESTNET}/block/${round}/`;
+
+/**
+ * Lora, AlgoKit's explorer. A second opinion, run by the Algorand Foundation
+ * rather than a wallet vendor, and the one that renders an app call's ABI
+ * method and box references — which is what someone checking a registry write
+ * actually needs to see.
+ */
+export const LORA_TESTNET = "https://lora.algokit.io/testnet";
+
+export const loraTx = (txId: string) => `${LORA_TESTNET}/transaction/${txId}`;
+export const loraAddress = (address: string) => `${LORA_TESTNET}/account/${address}`;
+export const loraApp = (appId: number) => `${LORA_TESTNET}/application/${appId}`;
+export const loraAsset = (assetId: number) => `${LORA_TESTNET}/asset/${assetId}`;
+export const loraBlock = (round: number) => `${LORA_TESTNET}/block/${round}`;

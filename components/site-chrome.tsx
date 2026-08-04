@@ -52,6 +52,21 @@ const REAL_CHAIN_ROUTES = [
     network: "TestNet",
     why: "The three ERC-8004 registries are deployed to Algorand TestNet and nowhere else.",
   },
+  // `/agent/<id>` and `/search` read the same boxes as `/registry`. They are
+  // listed here rather than nested under it because the provenance strip keys
+  // off this table alone — a real-chain page missing from it would be labelled
+  // "sample dataset" while showing live records, which is the exact confusion
+  // the strip exists to prevent.
+  {
+    prefix: "/agent",
+    network: "TestNet",
+    why: "An agent profile is decoded from box storage in the TestNet Identity, Reputation and Validation registries.",
+  },
+  {
+    prefix: "/search",
+    network: "TestNet",
+    why: "Lookups resolve through the Identity Registry's own dm_ and ad_ boxes on TestNet.",
+  },
 ] as const;
 
 const realChainRoute = (pathname: string) =>
@@ -252,7 +267,12 @@ export function DataSourceBar() {
   const pathname = usePathname();
   const network = useNetwork();
   const base = explorerBase(network);
-  const real = isRealChain(pathname);
+  const onChain = realChainRoute(pathname);
+  const real = onChain != null;
+  // Which chain, not which path. `/agent` and `/search` read the same TestNet
+  // boxes as `/registry`; branching on the prefix would have labelled them with
+  // `/live`'s MainNet copy the moment they were added.
+  const readsRegistries = onChain?.network === "TestNet";
 
   return (
     <div className="border-b" style={{ borderColor: "var(--line)", background: "var(--panel-2)" }}>
@@ -263,7 +283,7 @@ export function DataSourceBar() {
               <span aria-hidden style={{ width: 6, height: 6, borderRadius: 99, background: "var(--ok)" }} />
               Real chain data
             </span>
-            {pathname.startsWith("/registry") ? (
+            {readsRegistries ? (
               <>
                 <span style={{ color: "var(--ink-2)" }}>
                   Read from box storage on Algorand TestNet at request time. Nothing cached, nothing seeded.

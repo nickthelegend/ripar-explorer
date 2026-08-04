@@ -28,10 +28,11 @@
  * proxy of ours in the path — the same request a reader can paste into curl.
  */
 
-import { ABIType, type ABIValue } from "algosdk";
+import { ABIType, decodeAddress, isValidAddress, type ABIValue } from "algosdk";
 import {
   BOX_PREFIX,
   REGISTRIES,
+  SETTLEMENT_ASSET,
   TESTNET_ALGOD,
   TESTNET_INDEXER,
   type RegistryKey,
@@ -319,16 +320,56 @@ export async function getAgent(agentId: number, signal?: AbortSignal): Promise<O
   return raw ? toAgent(raw) : null;
 }
 
-/** The id registered for a domain, or null. Mirrors `resolve_by_domain`. */
+/**
+ * Prefix + raw key bytes. Note there is NO ARC-4 length prefix on the tail: a
+ * `dm_` box is the three prefix bytes followed by the domain's UTF-8, and an
+ * ARC-4 `string` would add two leading length bytes and address a box that does
+ * not exist.
+ */
+function rawKey(prefix: string, key: Uint8Array): Uint8Array {
+  const head = new TextEncoder().encode(prefix);
+  const name = new Uint8Array(head.length + key.length);
+  name.set(head);
+  name.set(key, head.length);
+  return name;
+}
+
+/**
+ * The id registered for a domain, or null. Mirrors `resolve_by_domain`.
+ *
+ * The contract returns 0 for "not registered" and its own comment insists
+ * callers check; here the box simply does not exist, which is the same answer
+ * with no sentinel to forget about.
+ */
 export async function resolveByDomain(domain: string, signal?: AbortSignal): Promise<number | null> {
-  const prefix = new TextEncoder().encode(BOX_PREFIX.agentByDomain);
-  const key = new TextEncoder().encode(domain);
-  const name = new Uint8Array(prefix.length + key.length);
-  name.set(prefix);
-  name.set(key, prefix.length);
-  const raw = await readBox(REGISTRIES.identity.appId, name, signal);
+  const raw = await readBox(
+    REGISTRIES.identity.appId,
+    rawKey(BOX_PREFIX.agentByDomain, new TextEncoder().encode(domain)),
+    signal,
+  );
   return raw ? readUint64BE(raw) : null;
 }
+
+/**
+ * The id registered for an Algorand address, or null.
+ *
+ * The `ad_` box is keyed by the 32-byte PUBLIC KEY, not by the 58-character
+ * base32 text — that text carries a 4-byte checksum the box name does not
+ * include. `decodeAddress` is what strips it; encoding the string directly
+ * would look up a 58-byte name and always miss.
+ */
+export async function resolveByAddress(address: string, signal?: AbortSignal): Promise<number | null> {
+  if (!isValidAddress(address)) return null;
+  const raw = await readBox(
+    REGISTRIES.identity.appId,
+    rawKey(BOX_PREFIX.agentByAddress, decodeAddress(address).publicKey),
+    signal,
+  );
+  return raw ? readUint64BE(raw) : null;
+}
+
+/** Whether a string is a well-formed Algorand address, checksum included. */
+export const isAlgorandAddress = (value: string) => isValidAddress(value);
 
 /* ── reputation ────────────────────────────────────────────────────────── */
 
@@ -513,7 +554,118 @@ export async function getJob(jobId: number, signal?: AbortSignal): Promise<Oncha
   return raw ? toJob(raw) : null;
 }
 
+/**
+ * What is actually escrowed against each job, keyed by job id.
+ *
+ * A missing `es_` box means nothing is held — which is the default, because
+ * posting a job commits no money. `fund_job` creates the box, `release_escrow`
+ * and `refund_escrow` delete it before submitting the transfer, so a job that
+ * has been paid out looks exactly like one that was never funded. That is why
+ * this is read as its own fact rather than inferred from the budget: the budget
+ * is a claim about worth, this is a balance.
+ */
+export async function getEscrows(signal?: AbortSignal): Promise<Map<number, number>> {
+  const appId = REGISTRIES.validation.appId;
+  const prefixLen = BOX_PREFIX.escrow.length;
+  const names = (await listBoxNames(appId, BOX_PREFIX.escrow, signal)).filter(
+    (n) => n.length === prefixLen + 8,
+  );
+  const rows = await mapLimit(names, async (name) => {
+    const raw = await readBox(appId, name, signal);
+    return raw ? ([readUint64BE(name, prefixLen), readUint64BE(raw)] as const) : null;
+  });
+  return new Map(rows.filter(present));
+}
+
+/* ── settlement ────────────────────────────────────────────────────────── */
+
+export type Settlement = {
+  txId: string;
+  round: number;
+  /** Unix seconds from the block header. */
+  timestamp: number;
+  sender: string;
+  receiver: string;
+  amountMicro: number;
+  amountUsdc: number;
+  direction: "in" | "out";
+};
+
+type IndexerTxn = {
+  id?: string;
+  sender?: string;
+  "confirmed-round"?: number;
+  "round-time"?: number;
+  "asset-transfer-transaction"?: { amount?: number; receiver?: string; "asset-id"?: number };
+};
+
+/**
+ * Settlement-asset transfers touching one address, newest first.
+ *
+ * Zero-amount transfers are dropped. An opt-in is a 0-unit self-transfer and it
+ * is a real transaction, but counting it as a settlement would put a payment on
+ * the chart that paid for nothing.
+ */
+export async function listSettlements(
+  address: string,
+  limit = 50,
+  signal?: AbortSignal,
+): Promise<Settlement[]> {
+  const body = await get<{ transactions?: IndexerTxn[] }>(
+    `${TESTNET_INDEXER}/v2/accounts/${address}/transactions` +
+      `?asset-id=${SETTLEMENT_ASSET.id}&tx-type=axfer&limit=${Math.min(limit, 100)}`,
+    signal,
+  );
+  const rows: Settlement[] = [];
+  for (const t of body.transactions ?? []) {
+    const x = t["asset-transfer-transaction"];
+    const amountMicro = Number(x?.amount ?? 0);
+    if (!t.id || !x || amountMicro <= 0) continue;
+    const receiver = x.receiver ?? "";
+    rows.push({
+      txId: t.id,
+      round: Number(t["confirmed-round"] ?? 0),
+      timestamp: Number(t["round-time"] ?? 0),
+      sender: t.sender ?? "",
+      receiver,
+      amountMicro,
+      amountUsdc: amountMicro / 10 ** SETTLEMENT_ASSET.decimals,
+      direction: receiver === address ? "in" : "out",
+    });
+  }
+  return rows.sort((a, b) => b.round - a.round);
+}
+
 /* ── registry-level facts ──────────────────────────────────────────────── */
+
+/**
+ * What an application's own account holds right now.
+ *
+ * The job board claims a budget is a number rather than a deposit. That claim
+ * is checkable, and this is the check: an Algorand account cannot hold an ASA
+ * it has not opted into, so `assetsOptedIn: 0` is stronger than a zero balance
+ * — the app could not receive the settlement asset even if someone sent it.
+ */
+export async function getAppHoldings(
+  appId: number,
+  signal?: AbortSignal,
+): Promise<{ address: string; microAlgos: number; assetsOptedIn: number }> {
+  // The app account address is sha512/256("appID" || uint64 be), base32 with a
+  // checksum. algosdk owns that derivation; deriving it here would be a second
+  // implementation of a thing that must never disagree.
+  const { getApplicationAddress } = await import("algosdk");
+  const address = getApplicationAddress(appId).toString();
+  const body = await get<{
+    amount?: number;
+    assets?: unknown[];
+    "total-assets-opted-in"?: number;
+  }>(`${TESTNET_ALGOD}/v2/accounts/${address}`, signal);
+  return {
+    address,
+    microAlgos: Number(body.amount ?? 0),
+    assetsOptedIn: Number(body["total-assets-opted-in"] ?? (body.assets ?? []).length),
+  };
+}
 
 type AppInfo = {
   params?: {

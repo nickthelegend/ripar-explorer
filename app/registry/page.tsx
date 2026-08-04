@@ -23,6 +23,7 @@ import {
 import { absTime, int, liveAgo, shortAddr, usdc } from "@/lib/format";
 import { EmptyState, Panel, Stat, Status } from "@/components/ui";
 import { CopyButton } from "@/components/copy-button";
+import { RegistrySearch } from "@/components/registry-search";
 import {
   ChainReadError,
   Out,
@@ -170,6 +171,7 @@ export default async function RegistryPage({
           ARC-4 struct. Nothing here comes from the sample dataset the rest of the explorer runs on.
         </p>
         <RegistryTabs active="agents" />
+        <RegistrySearch />
       </header>
 
       {fatal && <ChainReadError what="the Identity Registry" message={fatal} />}
@@ -193,7 +195,7 @@ export default async function RegistryPage({
                   ? `${int(unresolved)} of ${int(payments.length)} recorded ids ${
                       unresolved === 1 ? "does" : "do"
                     } not resolve to a TestNet transaction`
-                  : "each one a distinct payment id, countable only once"
+                  : "each one a transfer the AVM validated in the crediting call's own group"
               }
               tone={unresolved > 0 ? "warn" : undefined}
             />
@@ -269,16 +271,19 @@ export default async function RegistryPage({
                       const unbacked = unbackedByAgent.get(agent.agentId) ?? 0;
                       return (
                       <tr key={agent.agentId} id={`agent-${agent.agentId}`}>
-                        {/* An agent id is Ripar's, not Algorand's — no explorer
-                            has a page for it. The nearest thing a reader can
-                            open is the application that holds its box. */}
+                        {/* An agent id is Ripar's, not Algorand's, so no block
+                            explorer has a page for it — this one does. The
+                            profile is where the record, the score, the jobs and
+                            the agent card's payout claim are read together. */}
                         <td className="tnum font-medium">
-                          <Out
-                            href={peraApp(REGISTRIES.identity.appId)}
-                            title={`Box ag_${agent.agentId} in application ${REGISTRIES.identity.appId}`}
+                          <Link
+                            href={`/agent/${agent.agentId}`}
+                            className="underline-offset-2 hover:underline"
+                            style={{ color: "var(--accent-deep)" }}
+                            title={`Everything the registries record about agent ${agent.agentId}`}
                           >
                             #{agent.agentId}
-                          </Out>
+                          </Link>
                         </td>
                         {/* Not a link. The registry records a domain; whether
                             anything is served there is not something this page
@@ -407,10 +412,13 @@ export default async function RegistryPage({
                 Hiding them would make this a marketing figure rather than a record.
               </p>
               <p className="mt-3">
-                What the contract does <em>not</em> enforce: that the payment id it was handed corresponds to a
-                transfer that exists. It checks the id is 32 bytes and has never been counted before. Whether
-                each recorded id resolves to a real transaction is checked below, against the indexer, at read
-                time.
+                The deployed <span className="font-mono text-[12px]">accept_feedback</span> takes the settling
+                transfer as a <em>transaction in its own atomic group</em> and resolves both ends through the
+                Identity Registry, so the amount is read off something consensus has already validated and the
+                money must have gone from the client&rsquo;s registered address to the server&rsquo;s. An
+                earlier deployment took the id and the amount as arguments and checked only that the id was 32
+                bytes and unseen; two of the scores it published resolve to no transaction at all. That is the
+                bug this shape closes.
               </p>
             </div>
           </Panel>
@@ -418,12 +426,12 @@ export default async function RegistryPage({
           <Panel
             className="mt-5"
             title="Payments already counted"
-            note={`pd_ boxes in app ${REGISTRIES.reputation.appId} · a payment id can only be counted once`}
+            note={`pd_ boxes in app ${REGISTRIES.reputation.appId}`}
           >
             {payments.length === 0 ? (
               <EmptyState
-                title="No payments have been counted yet"
-                body="The Reputation Registry holds no pd_ boxes, so no settlement has been credited to any agent. Every score above would read zero, and does."
+                title="There is no per-payment ledger to read"
+                body={`The deployed Reputation Registry writes no pd_ boxes, so this table is empty by design rather than because nothing has settled — the scores above are the record. Keying a replay ledger on the transaction id was impossible anyway: the box name would depend on the txid, which depends on the group id, which depends on the app call, which must declare the box. Replay is already prevented by consensus, which rejects a duplicate txid outright.`}
               />
             ) : (
               <div className="overflow-x-auto">

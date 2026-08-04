@@ -19,7 +19,14 @@ export default function sitemap(): MetadataRoute.Sitemap {
     // do, so they carry today's date rather than the dataset capture.
     { url: `${SITE}/registry`, lastModified: new Date(), changeFrequency: "hourly", priority: 0.9 },
     { url: `${SITE}/registry/jobs`, lastModified: new Date(), changeFrequency: "hourly", priority: 0.8 },
+    { url: `${SITE}/search`, lastModified: new Date(), changeFrequency: "hourly", priority: 0.5 },
   ];
+
+  // Agent profiles are deliberately NOT enumerated here. The list would have to
+  // come from a box read, a sitemap is generated without a request to fail
+  // loudly on, and a registry outage would silently ship a sitemap that dropped
+  // every agent — telling crawlers the records had been removed. /registry
+  // links to all of them and is crawlable.
 
   const agents: MetadataRoute.Sitemap = ALL_AGENT_IDS.map((id) => ({
     url: `${SITE}/agents/${id}`,
