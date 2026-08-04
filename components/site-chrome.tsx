@@ -17,6 +17,9 @@ import {
 } from "@/lib/explorer-data";
 import { absTime } from "@/lib/format";
 import { withNetwork } from "@/lib/nav";
+// Constants only — the reader itself is server-side, and importing app ids from
+// one place is what stops this bar naming an app the pages no longer read.
+import { REGISTRIES, peraApp } from "@/lib/registries";
 
 const STORE_KEY = "ripar_explorer_network";
 
@@ -25,9 +28,36 @@ const NAV = [
   { href: "/agents", label: "Agents" },
   { href: "/jobs", label: "Jobs" },
   { href: "/transactions", label: "Transactions" },
-  // The only page backed by real chain data rather than the sample set.
+  // The two backed by real chain data rather than the sample set: /live reads
+  // MainNet settlements, /registry reads the TestNet registries. They sit
+  // together at the end of the nav so the split reads as a boundary.
   { href: "/live", label: "Live" },
+  { href: "/registry", label: "Registry" },
 ];
+
+/**
+ * The routes whose every figure comes off a chain, and which chain each one
+ * reads. Kept as one table because the nav dot, the provenance bar, the network
+ * control and the footer all have to agree.
+ *
+ * The network is part of the route, not a preference. `/live` reads MainNet
+ * settlements and `/registry` reads apps deployed to TestNet and only TestNet —
+ * neither can be moved by a toggle, so on these routes the network is stated
+ * rather than offered.
+ */
+const REAL_CHAIN_ROUTES = [
+  { prefix: "/live", network: "MainNet", why: "x402 settlements are read from the Algorand MainNet indexer." },
+  {
+    prefix: "/registry",
+    network: "TestNet",
+    why: "The three ERC-8004 registries are deployed to Algorand TestNet and nowhere else.",
+  },
+] as const;
+
+const realChainRoute = (pathname: string) =>
+  REAL_CHAIN_ROUTES.find((r) => pathname === r.prefix || pathname.startsWith(`${r.prefix}/`)) ?? null;
+
+const isRealChain = (pathname: string) => realChainRoute(pathname) != null;
 
 function useNetwork(): Network {
   const params = useSearchParams();
@@ -42,11 +72,15 @@ export function SiteHeader() {
   const params = useSearchParams();
   const router = useRouter();
   const network = useNetwork();
+  const onChain = realChainRoute(pathname);
 
   // Restore the last-used network only when the URL does not already name one.
   // Reading storage during render would make the server and client disagree,
   // so this runs after mount and simply rewrites the address.
   useEffect(() => {
+    // A `?network=` on a real-chain route is a claim the page cannot honour,
+    // so the stored preference is not written onto one.
+    if (realChainRoute(pathname)) return;
     if (params.get("network")) return;
     let stored: string | null = null;
     try {
@@ -89,18 +123,25 @@ export function SiteHeader() {
         <nav className="order-3 -mx-1 flex w-full items-center gap-1 overflow-x-auto sm:order-none sm:mx-0 sm:w-auto">
           {NAV.map((item) => {
             const active = item.href === "/" ? pathname === "/" : pathname.startsWith(item.href);
+            const real = isRealChain(item.href);
             return (
               <Link
                 key={item.href}
-                href={withNetwork(item.href, network)}
-                className="whitespace-nowrap rounded-md px-2.5 py-1.5 text-[13px] font-medium transition-colors"
+                href={real ? item.href : withNetwork(item.href, network)}
+                className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-md px-2.5 py-1.5 text-[13px] font-medium transition-colors"
                 style={
                   active
                     ? { color: "var(--accent-deep)", background: "var(--wash)" }
                     : { color: "var(--ink-2)" }
                 }
               >
+                {/* Provenance, not status: these two routes read a chain. The
+                    bar underneath says so in words; this is the shorthand. */}
+                {real && (
+                  <span aria-hidden style={{ width: 5, height: 5, borderRadius: 99, background: "var(--ok)" }} />
+                )}
                 {item.label}
+                {real && <span className="sr-only"> — real chain data</span>}
               </Link>
             );
           })}
@@ -108,29 +149,45 @@ export function SiteHeader() {
 
         <div className="ml-auto flex flex-none items-center gap-2">
           <SearchTrigger />
-          <div
-            className="flex items-center rounded-lg border p-0.5"
-            role="group"
-            aria-label="Network"
-            style={{ borderColor: "var(--line-strong)" }}
-          >
-            {NETWORKS.map((n) => (
-              <button
-                key={n.id}
-                type="button"
-                onClick={() => switchTo(n.id)}
-                aria-pressed={n.id === network}
-                className="rounded-md px-2 py-1 text-[12px] font-medium transition-colors"
-                style={
-                  n.id === network
-                    ? { background: "var(--accent-deep)", color: "#fff" }
-                    : { color: "var(--ink-2)" }
-                }
-              >
-                {n.label}
-              </button>
-            ))}
-          </div>
+          {/* On a real-chain route the network is a fact about what was read,
+              not a setting. Offering the toggle here would let a reader select
+              MainNet on a page that is showing TestNet boxes and get no
+              indication that the choice did nothing. */}
+          {onChain ? (
+            <span
+              className="flex items-center gap-1.5 rounded-lg border px-2 py-1 text-[12px] font-medium"
+              title={onChain.why}
+              style={{ borderColor: "var(--line-strong)", color: "var(--ink-2)" }}
+            >
+              <span aria-hidden style={{ width: 5, height: 5, borderRadius: 99, background: "var(--ok)" }} />
+              <span className="sr-only">Reading </span>
+              {onChain.network}
+            </span>
+          ) : (
+            <div
+              className="flex items-center rounded-lg border p-0.5"
+              role="group"
+              aria-label="Network"
+              style={{ borderColor: "var(--line-strong)" }}
+            >
+              {NETWORKS.map((n) => (
+                <button
+                  key={n.id}
+                  type="button"
+                  onClick={() => switchTo(n.id)}
+                  aria-pressed={n.id === network}
+                  className="rounded-md px-2 py-1 text-[12px] font-medium transition-colors"
+                  style={
+                    n.id === network
+                      ? { background: "var(--accent-deep)", color: "#fff" }
+                      : { color: "var(--ink-2)" }
+                  }
+                >
+                  {n.label}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
       </div>
     </header>
@@ -181,33 +238,88 @@ function SearchTrigger() {
 /* ── data source bar ───────────────────────────────────────────────────── */
 
 /**
- * The trust strip. It names exactly where each record type comes from and
- * refuses to imply more than that: the registry and escrow apps are not
- * deployed yet, so they say so instead of showing a plausible-looking app id.
- * The one live identifier here — the USDC asset — links out so it can be
- * checked against a source that has nothing to do with us.
+ * The trust strip, and the one place the split is stated outright.
+ *
+ * This explorer shows two different kinds of record and they must never be
+ * mistaken for each other. `/live` and `/registry` are read off a chain at
+ * request time; `/agents`, `/jobs` and `/transactions` are a sample dataset.
+ * The bar changes with the route rather than describing both at once, because
+ * a reader on a page wants to know what *this* page is.
+ *
+ * Every identifier it names links out to somewhere that is not us.
  */
 export function DataSourceBar() {
+  const pathname = usePathname();
   const network = useNetwork();
   const base = explorerBase(network);
+  const real = isRealChain(pathname);
 
   return (
     <div className="border-b" style={{ borderColor: "var(--line)", background: "var(--panel-2)" }}>
       <div className="mx-auto flex max-w-[1240px] flex-wrap items-center gap-x-5 gap-y-1.5 px-4 py-2 text-[11.5px] sm:px-6">
-        <span className="inline-flex items-center gap-1.5 font-medium" style={{ color: "var(--accent-deep)" }}>
-          <span aria-hidden style={{ width: 6, height: 6, borderRadius: 99, background: "var(--accent)" }} />
-          Sample dataset
-        </span>
-        <span style={{ color: "var(--ink-2)" }}>
-          {DATASET.agents} agents · {DATASET.jobs} jobs · {DATASET.transactions} transactions, captured{" "}
-          <span className="tnum">{absTime(DATASET.snapshot)}</span>
-        </span>
+        {real ? (
+          <>
+            <span className="inline-flex items-center gap-1.5 font-medium" style={{ color: "var(--ok)" }}>
+              <span aria-hidden style={{ width: 6, height: 6, borderRadius: 99, background: "var(--ok)" }} />
+              Real chain data
+            </span>
+            {pathname.startsWith("/registry") ? (
+              <>
+                <span style={{ color: "var(--ink-2)" }}>
+                  Read from box storage on Algorand TestNet at request time. Nothing cached, nothing seeded.
+                </span>
+                <span className="hidden h-3 w-px lg:block" style={{ background: "var(--line-strong)" }} aria-hidden />
+                <SourceRef
+                  label="Identity"
+                  value={String(REGISTRIES.identity.appId)}
+                  href={peraApp(REGISTRIES.identity.appId)}
+                />
+                <SourceRef
+                  label="Reputation"
+                  value={String(REGISTRIES.reputation.appId)}
+                  href={peraApp(REGISTRIES.reputation.appId)}
+                />
+                <SourceRef
+                  label="Validation"
+                  value={String(REGISTRIES.validation.appId)}
+                  href={peraApp(REGISTRIES.validation.appId)}
+                />
+              </>
+            ) : (
+              <span style={{ color: "var(--ink-2)" }}>
+                x402 settlements read from the Algorand MainNet indexer at request time. Every row links to a
+                block explorer.
+              </span>
+            )}
+          </>
+        ) : (
+          <>
+            <span className="inline-flex items-center gap-1.5 font-medium" style={{ color: "var(--accent-deep)" }}>
+              <span aria-hidden style={{ width: 6, height: 6, borderRadius: 99, background: "var(--accent)" }} />
+              Sample dataset
+            </span>
+            <span style={{ color: "var(--ink-2)" }}>
+              {DATASET.agents} agents · {DATASET.jobs} jobs · {DATASET.transactions} transactions, captured{" "}
+              <span className="tnum">{absTime(DATASET.snapshot)}</span>
+            </span>
 
-        <span className="hidden h-3 w-px lg:block" style={{ background: "var(--line-strong)" }} aria-hidden />
+            <span className="hidden h-3 w-px lg:block" style={{ background: "var(--line-strong)" }} aria-hidden />
 
-        <SourceRef label="Agent registry" value="not deployed" />
-        <SourceRef label="Job escrow" value="not deployed" />
-        <SourceRef label="Settlement asset" value={`USDC · ${USDC_ASSET_ID}`} href={`${base}/asset/${USDC_ASSET_ID}`} />
+            <span className="inline-flex items-center gap-1.5" style={{ color: "var(--ink-2)" }}>
+              <span aria-hidden style={{ width: 6, height: 6, borderRadius: 99, background: "var(--ok)" }} />
+              Real chain data lives on{" "}
+              <Link href="/registry" className="font-medium underline-offset-2 hover:underline" style={{ color: "var(--ok)" }}>
+                /registry
+              </Link>{" "}
+              and{" "}
+              <Link href="/live" className="font-medium underline-offset-2 hover:underline" style={{ color: "var(--ok)" }}>
+                /live
+              </Link>
+            </span>
+
+            <SourceRef label="Settlement asset" value={`USDC · ${USDC_ASSET_ID}`} href={`${base}/asset/${USDC_ASSET_ID}`} />
+          </>
+        )}
       </div>
     </div>
   );
@@ -249,8 +361,8 @@ export function SiteFooter() {
           <span className="font-medium">Ripar Explorer</span>
         </span>
         <p className="max-w-[52ch] leading-relaxed" style={{ color: "var(--ink-2)" }}>
-          A public index of agents, jobs and x402 settlements on Algorand. Every record shown today is
-          sample data; the indexer replaces it without any change to these pages.
+          A public index of agents, jobs and x402 settlements on Algorand. The registry and live pages read a
+          chain directly; the agent, job and transaction pages are a sample dataset until the indexer lands.
         </p>
         <nav className="ml-auto flex flex-wrap items-center gap-x-5 gap-y-2" style={{ color: "var(--ink-2)" }}>
           <Link href={withNetwork("/agents", network)} className="hover:text-[var(--accent-deep)]">
@@ -261,6 +373,12 @@ export function SiteFooter() {
           </Link>
           <Link href={withNetwork("/transactions", network)} className="hover:text-[var(--accent-deep)]">
             Transactions
+          </Link>
+          <Link href="/registry" className="hover:text-[var(--accent-deep)]">
+            Registry
+          </Link>
+          <Link href="/registry/jobs" className="hover:text-[var(--accent-deep)]">
+            Job board
           </Link>
           <a href="/feed.json" className="hover:text-[var(--accent-deep)]">
             JSON feed

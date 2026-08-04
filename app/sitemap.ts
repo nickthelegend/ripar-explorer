@@ -15,6 +15,10 @@ export default function sitemap(): MetadataRoute.Sitemap {
     { url: `${SITE}/agents`, lastModified, changeFrequency: "hourly", priority: 0.9 },
     { url: `${SITE}/jobs`, lastModified, changeFrequency: "hourly", priority: 0.9 },
     { url: `${SITE}/transactions`, lastModified, changeFrequency: "hourly", priority: 0.8 },
+    // The onchain routes have no snapshot — they change whenever the registries
+    // do, so they carry today's date rather than the dataset capture.
+    { url: `${SITE}/registry`, lastModified: new Date(), changeFrequency: "hourly", priority: 0.9 },
+    { url: `${SITE}/registry/jobs`, lastModified: new Date(), changeFrequency: "hourly", priority: 0.8 },
   ];
 
   const agents: MetadataRoute.Sitemap = ALL_AGENT_IDS.map((id) => ({

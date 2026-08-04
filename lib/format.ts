@@ -33,6 +33,24 @@ export function relTime(isoDate: string): string {
   return future ? `in ${n} ${label}${plural}` : `${n} ${label}${plural} ago`;
 }
 
+/**
+ * Relative time against the wall clock, for chain data.
+ *
+ * `relTime` deliberately measures against the frozen dataset snapshot. Onchain
+ * records have no snapshot — a block happened when it happened — so they need
+ * the real clock. Only safe inside a `force-dynamic` server render: computed
+ * during a static build it would be baked in, and computed on both sides of a
+ * hydration boundary it would tear.
+ */
+export function liveAgo(unixSeconds: number): string {
+  if (!unixSeconds) return "—";
+  const s = Math.max(0, Math.round(Date.now() / 1000 - unixSeconds));
+  if (s < 60) return `${s}s ago`;
+  if (s < 3600) return `${Math.round(s / 60)}m ago`;
+  if (s < 86_400) return `${Math.round(s / 3600)}h ago`;
+  return `${Math.round(s / 86_400)}d ago`;
+}
+
 /** Absolute UTC time. Lists get `relTime`, detail pages get this. */
 export function absTime(isoDate: string): string {
   const d = new Date(isoDate);
@@ -157,3 +175,32 @@ export const TX_STATUS: Record<"confirmed" | "failed", { label: string; tone: To
   confirmed: { label: "Confirmed", tone: "ok" },
   failed: { label: "Failed", tone: "bad" },
 };
+
+/* ── onchain status vocabulary ─────────────────────────────────────────── */
+
+/**
+ * The ValidationRegistry's job states. Onchain these are bare uint64s — the AVM
+ * has no enums — so the mapping from 3 to "Validated" lives here with every
+ * other status vocabulary rather than inline in a table cell.
+ *
+ * The names and codes are the contract's own, from `validation_registry.py`.
+ */
+export const CHAIN_JOB_STATUS: Record<number, { label: string; tone: Tone; hint: string }> = {
+  0: { label: "Open", tone: "info", hint: "Posted with a budget and a spec hash. No agent assigned yet." },
+  1: { label: "Assigned", tone: "run", hint: "The client picked an agent. Only that agent may submit a result." },
+  2: { label: "Submitted", tone: "verify", hint: "A result hash is committed onchain and is waiting to be judged." },
+  3: { label: "Validated", tone: "ok", hint: "The validator judged the result as passing. Terminal." },
+  4: { label: "Disputed", tone: "bad", hint: "The validator judged the result as failing. Terminal, and kept on the record." },
+  5: { label: "Cancelled", tone: "idle", hint: "Withdrawn by the client while still open. An assigned job cannot be cancelled." },
+};
+
+/** An unrecognised code is reported as itself, never mapped to a nearby state. */
+export function chainJobStatus(code: number): { label: string; tone: Tone; hint: string } {
+  return (
+    CHAIN_JOB_STATUS[code] ?? {
+      label: `Unknown (${code})`,
+      tone: "idle",
+      hint: "This status code is not one the deployed contract defines. Shown raw rather than guessed at.",
+    }
+  );
+}
