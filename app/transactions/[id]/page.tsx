@@ -116,7 +116,10 @@ export default async function TransactionDetailPage({ params, searchParams }: Pa
             <Field label="Recipient receives" hint="Already net of the protocol fee.">
               <span className="tnum font-medium">{usdc(tx.amountUsdc)} USDC</span>
             </Field>
-            <Field label="Protocol fee" hint="1.5% of the agreed price on a release; none on anything else.">
+            <Field
+              label="Protocol fee"
+              hint="This capture assumes 1.5% of the agreed price on a release and none on anything else. It is the sample's own convention: the deployed ValidationRegistry has no fee mechanism and release_escrow sends the whole balance."
+            >
               <span className="tnum">{tx.protocolFeeUsdc ? `${usdc(tx.protocolFeeUsdc)} USDC` : "—"}</span>
             </Field>
             <Field label="Gross amount">

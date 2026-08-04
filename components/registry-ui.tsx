@@ -76,10 +76,17 @@ export function Out({
 
 /* ── navigation between the two onchain views ──────────────────────────── */
 
-export function RegistryTabs({ active }: { active: "agents" | "jobs" }) {
+export function RegistryTabs({
+  active,
+}: {
+  active: "agents" | "jobs" | "stats" | "leaderboard" | "escrow";
+}) {
   const tabs = [
     { key: "agents", href: "/registry", label: "Agents" },
     { key: "jobs", href: "/registry/jobs", label: "Job board" },
+    { key: "escrow", href: "/registry/escrow", label: "Escrow" },
+    { key: "leaderboard", href: "/registry/leaderboard", label: "Leaderboard" },
+    { key: "stats", href: "/registry/stats", label: "Network stats" },
   ] as const;
 
   return (

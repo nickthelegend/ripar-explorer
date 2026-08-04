@@ -667,6 +667,85 @@ export async function getAppHoldings(
   };
 }
 
+/**
+ * What an application's account holds of ONE asset, in base units.
+ *
+ * The escrow boxes say what the contract believes it owes per job. This says
+ * what it can actually pay. They should agree, and a page that can show both is
+ * a page where a disagreement would be visible rather than assumed away.
+ */
+export async function getAppAssetBalance(
+  appId: number,
+  assetId: number,
+  signal?: AbortSignal,
+): Promise<{ address: string; heldMicro: number; optedIn: boolean }> {
+  const { getApplicationAddress } = await import("algosdk");
+  const address = getApplicationAddress(appId).toString();
+  // The single-asset endpoint answers `{ "asset-holding": {...} }` — NOT an
+  // `assets` array like the account endpoint does. Reading the wrong key found
+  // nothing and reported "not opted in", which is a much stronger claim than a
+  // zero balance and was simply false: this app opted in and holds 0.
+  type AssetHolding = { "asset-holding"?: { "asset-id"?: number; amount?: number } };
+  const body = await get<AssetHolding>(
+    `${TESTNET_ALGOD}/v2/accounts/${address}/assets/${assetId}`,
+    signal,
+  ).catch((e): AssetHolding => {
+    // 404 is the real "not opted in": an Algorand account cannot hold an asset
+    // it has not opted into, which bounds what it could owe even in principle.
+    if (e instanceof RegistryReadError && e.status === 404) return {};
+    throw e;
+  });
+  const holding = body["asset-holding"] ?? null;
+  return { address, heldMicro: Number(holding?.amount ?? 0), optedIn: holding != null };
+}
+
+/**
+ * Every non-zero transfer of the settlement asset the indexer will give us,
+ * paginated to exhaustion within a bound.
+ *
+ * Zero-amount transfers are dropped: an opt-in is a 0-unit self-transfer, and
+ * counting it as a settlement would put a payment on the board that paid for
+ * nothing. If the cursor is still running when the bound is hit, this says so
+ * rather than returning a short count that would read as a complete one.
+ */
+export async function countSettlementTransfers(
+  signal?: AbortSignal,
+  maxPages = 20,
+): Promise<{ count: number; volumeMicro: number; senders: number; receivers: number; complete: boolean }> {
+  type Row = {
+    sender?: string;
+    "asset-transfer-transaction"?: { amount?: number; receiver?: string };
+  };
+  let next: string | undefined;
+  let count = 0;
+  let volumeMicro = 0;
+  const senders = new Set<string>();
+  const receivers = new Set<string>();
+
+  for (let page = 0; page < maxPages; page += 1) {
+    const body = await get<{ transactions?: Row[]; "next-token"?: string }>(
+      `${TESTNET_INDEXER}/v2/transactions?asset-id=${SETTLEMENT_ASSET.id}&tx-type=axfer&limit=1000` +
+        (next ? `&next=${encodeURIComponent(next)}` : ""),
+      signal,
+    );
+    const rows = body.transactions ?? [];
+    for (const t of rows) {
+      const amount = Number(t["asset-transfer-transaction"]?.amount ?? 0);
+      if (amount <= 0) continue;
+      count += 1;
+      volumeMicro += amount;
+      if (t.sender) senders.add(t.sender);
+      const receiver = t["asset-transfer-transaction"]?.receiver;
+      if (receiver) receivers.add(receiver);
+    }
+    next = body["next-token"];
+    if (!next || rows.length === 0) {
+      return { count, volumeMicro, senders: senders.size, receivers: receivers.size, complete: true };
+    }
+  }
+  return { count, volumeMicro, senders: senders.size, receivers: receivers.size, complete: false };
+}
+
 type AppInfo = {
   params?: {
     creator?: string;

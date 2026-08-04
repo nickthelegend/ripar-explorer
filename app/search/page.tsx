@@ -73,6 +73,13 @@ export default async function SearchPage({
   let resolved: number | null = null;
   let readError: string | null = null;
 
+  // A transaction id is 52 unpadded base32 characters; an address is 58. The
+  // two cannot be confused by length, so this branch is safe to take first and
+  // it makes /tx reachable from the same box that resolves agents.
+  if (/^[A-Z2-7]{52}$/.test(raw.toUpperCase())) {
+    redirect(`/tx/${raw.toUpperCase()}`);
+  }
+
   if (/^\d+$/.test(raw)) {
     const agentId = Number.parseInt(raw, 10);
     tried.push({ kind: "agent id", boxName: `${BOX_PREFIX.agents}${agentId}`, input: raw });

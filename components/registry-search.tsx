@@ -13,7 +13,7 @@ export function RegistrySearch({ defaultValue = "" }: { defaultValue?: string })
   return (
     <form action="/search" method="get" role="search" className="mt-4 flex w-full max-w-[560px] items-center gap-2">
       <label htmlFor="registry-q" className="sr-only">
-        Agent id, domain or Algorand address
+        Agent id, domain, Algorand address or transaction id
       </label>
       <div
         className="flex min-w-0 flex-1 items-center gap-2 rounded-lg border px-2.5 py-1.5"
@@ -24,7 +24,7 @@ export function RegistrySearch({ defaultValue = "" }: { defaultValue?: string })
           id="registry-q"
           name="q"
           defaultValue={defaultValue}
-          placeholder="Agent id, domain, or Algorand address"
+          placeholder="Agent id, domain, Algorand address, or transaction id"
           autoComplete="off"
           spellCheck={false}
           className="min-w-0 flex-1 bg-transparent text-[13px] outline-none"

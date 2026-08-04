@@ -67,6 +67,15 @@ const REAL_CHAIN_ROUTES = [
     network: "TestNet",
     why: "Lookups resolve through the Identity Registry's own dm_ and ad_ boxes on TestNet.",
   },
+  // `/tx/<id>` decodes one real transaction from the TestNet indexer. It is
+  // listed separately from `/transactions`, which is the sample dataset — two
+  // routes one character apart showing completely different kinds of record, so
+  // the provenance strip has to tell them apart.
+  {
+    prefix: "/tx",
+    network: "TestNet",
+    why: "A transaction is read from the TestNet indexer and decoded against the deployed registries' ABI.",
+  },
 ] as const;
 
 const realChainRoute = (pathname: string) =>

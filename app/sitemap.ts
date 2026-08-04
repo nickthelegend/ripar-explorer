@@ -19,8 +19,16 @@ export default function sitemap(): MetadataRoute.Sitemap {
     // do, so they carry today's date rather than the dataset capture.
     { url: `${SITE}/registry`, lastModified: new Date(), changeFrequency: "hourly", priority: 0.9 },
     { url: `${SITE}/registry/jobs`, lastModified: new Date(), changeFrequency: "hourly", priority: 0.8 },
+    { url: `${SITE}/registry/escrow`, lastModified: new Date(), changeFrequency: "hourly", priority: 0.8 },
+    { url: `${SITE}/registry/leaderboard`, lastModified: new Date(), changeFrequency: "hourly", priority: 0.8 },
+    { url: `${SITE}/registry/stats`, lastModified: new Date(), changeFrequency: "hourly", priority: 0.8 },
     { url: `${SITE}/search`, lastModified: new Date(), changeFrequency: "hourly", priority: 0.5 },
   ];
+
+  // `/tx/<id>` is not enumerated either, and for a stronger reason than the
+  // agent profiles: the set is every transaction that has ever touched the
+  // registries, it grows without bound, and a sitemap generated from an indexer
+  // read that failed would tell crawlers those records had been removed.
 
   // Agent profiles are deliberately NOT enumerated here. The list would have to
   // come from a box read, a sitemap is generated without a request to fail

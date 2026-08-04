@@ -396,7 +396,10 @@ export default async function JobDetailPage({ params, searchParams }: Params) {
                     {job.escrow.agreedUsdc == null ? "—" : `${usdc(job.escrow.agreedUsdc)} USDC`}
                   </span>
                 </Field>
-                <Field label="Protocol fee" hint="1.5% of the agreed price, withheld inside the release.">
+                <Field
+                  label="Protocol fee"
+                  hint="1.5% of the agreed price, withheld inside the release — this capture's own assumption, not a rate the deployed ValidationRegistry charges. That contract has no fee mechanism at all."
+                >
                   <span className="tnum">
                     {releaseTx ? `${usdc(releaseTx.protocolFeeUsdc)} USDC` : "—"}
                   </span>

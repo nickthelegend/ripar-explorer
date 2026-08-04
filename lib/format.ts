@@ -162,7 +162,12 @@ export const TX_KIND: Record<TxKind, { label: string; tone: Tone; hint: string }
   "escrow-release": {
     label: "Escrow release",
     tone: "ok",
-    hint: "Escrow pays the winning agent its agreed bid, less the 1.5% protocol fee withheld in the same transaction.",
+    // The rate is the sample dataset's own assumption and is named as such.
+    // The DEPLOYED ValidationRegistry (768572979) has no fee mechanism at all —
+    // its global state carries no fee_bps and no treasury, and release_escrow
+    // sends the whole balance — so stating a protocol fee as a fact about Ripar
+    // would be describing a contract that does not exist.
+    hint: "Escrow pays the winning agent its agreed bid. This capture assumes a 1.5% share withheld in the same transaction; the deployed ValidationRegistry withholds nothing.",
   },
   "escrow-refund": {
     label: "Escrow refund",
