@@ -178,3 +178,52 @@ export function summarise(rows: RealSettlement[]) {
     rows.length > 1 ? (rows[0].timestamp - rows[rows.length - 1].timestamp) / 1000 : 0;
   return { count: rows.length, volume, payers, payees, feesCovered, spanSeconds: span };
 }
+
+
+/* ── real agents, derived from who is actually being paid ──────────────── */
+
+export type RealAgent = {
+  /** The payout address. On x402 this IS the agent's identity. */
+  address: string;
+  /** Settlements received. */
+  calls: number;
+  earnedUsdc: number;
+  /** Distinct addresses that have paid it. */
+  payers: number;
+  firstSeen: number;
+  lastSeen: number;
+  /** Median payment, which is a decent proxy for the endpoint's list price. */
+  medianUsdc: number;
+};
+
+/**
+ * There is no registry to read, so an "agent" here is defined by behaviour: an
+ * address that has received x402 settlements. That is honest — it is exactly
+ * what the chain knows — and it is more useful than a directory of self-declared
+ * listings, because every row is backed by someone having actually paid.
+ */
+export function agentsFrom(rows: RealSettlement[]): RealAgent[] {
+  const by = new Map<string, RealSettlement[]>();
+  for (const r of rows) {
+    if (!r.to) continue;
+    by.set(r.to, [...(by.get(r.to) ?? []), r]);
+  }
+
+  const median = (xs: number[]) => {
+    const a = [...xs].sort((p, q) => p - q);
+    const m = Math.floor(a.length / 2);
+    return a.length % 2 ? a[m] : (a[m - 1] + a[m]) / 2;
+  };
+
+  return [...by.entries()]
+    .map(([address, rs]) => ({
+      address,
+      calls: rs.length,
+      earnedUsdc: rs.reduce((s, r) => s + r.amountUsdc, 0),
+      payers: new Set(rs.map((r) => r.from)).size,
+      firstSeen: Math.min(...rs.map((r) => r.timestamp)),
+      lastSeen: Math.max(...rs.map((r) => r.timestamp)),
+      medianUsdc: median(rs.map((r) => r.amountUsdc)),
+    }))
+    .sort((a, b) => b.earnedUsdc - a.earnedUsdc);
+}
