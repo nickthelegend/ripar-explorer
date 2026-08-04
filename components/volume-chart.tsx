@@ -178,28 +178,36 @@ export function VolumeChart({ series }: { series: VolumeSeries }) {
 
       {/* The same numbers as a table, for anyone who cannot use the picture.
           A chart with no readable equivalent is a chart half the audience is
-          simply locked out of. */}
-      <table className="sr-only">
-        <caption>{summary}</caption>
-        <thead>
-          <tr>
-            <th scope="col">Day (UTC)</th>
-            <th scope="col">Released, USDC</th>
-            <th scope="col">Settlements</th>
-            <th scope="col">Running total, USDC</th>
-          </tr>
-        </thead>
-        <tbody>
-          {points.map((p) => (
-            <tr key={p.day}>
-              <th scope="row">{absTime(p.day)}</th>
-              <td>{usdc(p.releasedUsdc)}</td>
-              <td>{int(p.settlements)}</td>
-              <td>{usdc(p.cumulativeUsdc)}</td>
+          simply locked out of.
+
+          sr-only sits on a wrapping div, not on the table: in auto table layout
+          `width` is a minimum rather than a maximum, so a table carrying sr-only
+          keeps its full content width — here ~860px — and inflates
+          documentElement.scrollWidth past the viewport even though clip-path
+          hides it. A block-level div honours the 1px and actually collapses. */}
+      <div className="sr-only">
+        <table>
+          <caption>{summary}</caption>
+          <thead>
+            <tr>
+              <th scope="col">Day (UTC)</th>
+              <th scope="col">Released, USDC</th>
+              <th scope="col">Settlements</th>
+              <th scope="col">Running total, USDC</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {points.map((p) => (
+              <tr key={p.day}>
+                <th scope="row">{absTime(p.day)}</th>
+                <td>{usdc(p.releasedUsdc)}</td>
+                <td>{int(p.settlements)}</td>
+                <td>{usdc(p.cumulativeUsdc)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
 
       <figcaption className="border-t px-4 py-2.5 text-[11.5px] leading-relaxed" style={{ borderColor: "var(--line)", color: "var(--ink-3)" }}>
         {series.activeDays} of {points.length} days in the capture window saw a settlement. The gaps are
