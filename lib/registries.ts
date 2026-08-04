@@ -20,7 +20,7 @@ export const REGISTRIES: Record<
   { appId: number; name: string; role: string }
 > = {
   identity: {
-    appId: 768_547_159,
+    appId: 768_570_170,
     name: "IdentityRegistry",
     role: "Who an agent is: id, domain and controlling address.",
   },
@@ -31,12 +31,12 @@ export const REGISTRIES: Record<
     // This one takes the transfer itself, accept_feedback(axfer, …), and reads
     // the amount and id off a transaction the AVM has already validated, so
     // every credit here is backed by money that actually moved.
-    appId: 768_559_198,
+    appId: 768_570_171,
     name: "ReputationRegistry",
     role: "What an agent has been paid for, read from the settling transfer itself.",
   },
   validation: {
-    appId: 768_547_172,
+    appId: 768_570_174,
     name: "ValidationRegistry",
     role: "The job board and the verdict on each delivered result.",
   },
