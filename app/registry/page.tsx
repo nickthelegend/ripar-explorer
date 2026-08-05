@@ -21,6 +21,7 @@ import {
   type OnchainScore,
 } from "@/lib/erc8004";
 import { absTime, int, liveAgo, shortAddr, usdc } from "@/lib/format";
+import { SETTLEMENT_ASSET } from "@/lib/registries";
 import { EmptyState, Panel, Stat, Status } from "@/components/ui";
 import { CopyButton } from "@/components/copy-button";
 import { RegistrySearch } from "@/components/registry-search";
@@ -38,7 +39,7 @@ import {
 export const metadata: Metadata = {
   title: "Onchain agent registry",
   description:
-    "Every agent registered in Ripar's ERC-8004 Identity Registry on Algorand TestNet, with the reputation the Reputation Registry has recorded for it — jobs paid, USDC settled, validated versus disputed. Read live from box storage.",
+    "Every agent registered in Ripar's ERC-8004 Identity Registry on Algorand TestNet, with the reputation the Reputation Registry has recorded for it — jobs paid, rUSDC settled, validated versus disputed. Read live from box storage.",
   alternates: { canonical: "/registry" },
 };
 
@@ -205,9 +206,9 @@ export default async function RegistryPage({
                 recoverable — the contract keeps a sum, not a ledger — so the
                 figure is qualified rather than adjusted. */}
             <Stat
-              label="USDC settled"
+              label={`${SETTLEMENT_ASSET.unitName} settled`}
               value={usdc(totals.volumeUsdc)}
-              unit="USDC"
+              unit={SETTLEMENT_ASSET.unitName}
               sub={
                 unresolved > 0
                   ? `summed from every agent's volume_micro — ${int(unresolved)} of the ${int(
@@ -258,7 +259,7 @@ export default async function RegistryPage({
                         Jobs paid
                       </SortTh>
                       <SortTh href={href("volume")} active={sort === "volume"} dir={dir} align="right" width={126}>
-                        USDC settled
+                        {SETTLEMENT_ASSET.unitName} settled
                       </SortTh>
                       <PlainTh width={152}>Validated / disputed</PlainTh>
                       <PlainTh align="right" width={104}>
