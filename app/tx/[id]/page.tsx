@@ -45,15 +45,14 @@ const units = (micro: number) => micro / 10 ** SETTLEMENT_ASSET.decimals;
 /**
  * What to call an asset id.
  *
- * The registries settle in rUSDC, which is minted for that deployment. MainNet
- * x402 settles in the real USDC. Printing "rUSDC" over a MainNet USDC amount —
- * which this page did until it started reading both chains — is a small label
- * with a large lie in it, so the symbol is looked up rather than assumed.
+ * TestNet and MainNet USDC are different assets with the same symbol, and this
+ * page reads both chains. Printing a symbol this table does not know would mean
+ * labelling an unknown token "USDC" on the strength of six decimals, so an
+ * unrecognised id is shown as an id.
  */
 const ASSET_NAMES: Record<number, string> = {
-  [SETTLEMENT_ASSET.id]: SETTLEMENT_ASSET.unitName,
-  31_566_704: "USDC",
-  10_458_941: "USDC",
+  31_566_704: "USDC", // MainNet
+  10_458_941: "USDC", // TestNet — also SETTLEMENT_ASSET.id
 };
 const assetName = (id: number) => ASSET_NAMES[id] ?? `asset ${id}`;
 

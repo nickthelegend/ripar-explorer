@@ -344,8 +344,9 @@ export default async function NetworkStatsPage() {
                 <Out href={loraAsset(SETTLEMENT_ASSET.id)}>
                   {SETTLEMENT_ASSET.unitName} · {SETTLEMENT_ASSET.id}
                 </Out>{" "}
-                — six decimals, minted for this deployment rather than circulating TestNet USDC, which is why
-                every amount on these pages says {SETTLEMENT_ASSET.unitName} and not USDC. Per-job detail is on
+                — six decimals, circulating TestNet USDC. It is the same asset the x402 side quotes
+                prices in, so an amount here and an amount on a 402 challenge mean the same thing.
+                Per-job detail is on
                 the <Link href="/registry/jobs" className="underline-offset-2 hover:underline" style={{ color: "var(--accent-deep)" }}>job board</Link>{" "}
                 and the <Link href="/registry/escrow" className="underline-offset-2 hover:underline" style={{ color: "var(--accent-deep)" }}>escrow view</Link>.
               </p>

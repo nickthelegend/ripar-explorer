@@ -68,17 +68,20 @@ export const BOX_PREFIX = {
  * The asset the ReputationRegistry counts, read from its own `usdc_asset`
  * global at bootstrap and repeated here so a page can name it without a call.
  *
- * It is NOT circulating TestNet USDC (10458941). It is `rUSDC`, six decimals,
- * minted for this deployment because the TestNet USDC faucet is behind a login
- * and an unfunded settlement asset would have meant no settlements to read at
- * all. The substitution is deliberate; every page that shows an amount says
- * `rUSDC` rather than `USDC` so the figure is never mistaken for the real
- * thing.
+ * Circulating TestNet USDC — the same asset the x402 side quotes prices in, so
+ * a figure on these pages and a figure on a 402 challenge mean the same thing.
+ *
+ * An earlier generation of the registries was bootstrapped to a token minted
+ * for this deployment, because the TestNet USDC faucet is login-gated and an
+ * unfunded settlement asset would have meant no settlements to read at all.
+ * That made every amount here a near-homonym of the real one, which is exactly
+ * the kind of figure a reader carries away wrong. `bootstrap` is one-shot, so
+ * correcting it took a redeploy rather than a config change.
  */
 export const SETTLEMENT_ASSET = {
-  id: 768_547_363,
-  unitName: "rUSDC",
-  name: "Ripar Test USDC",
+  id: 10_458_941,
+  unitName: "USDC",
+  name: "USDC",
   decimals: 6,
 } as const;
 

@@ -39,7 +39,7 @@ import {
 export const metadata: Metadata = {
   title: "Onchain agent registry",
   description:
-    "Every agent registered in Ripar's ERC-8004 Identity Registry on Algorand TestNet, with the reputation the Reputation Registry has recorded for it — jobs paid, rUSDC settled, validated versus disputed. Read live from box storage.",
+    "Every agent registered in Ripar's ERC-8004 Identity Registry on Algorand TestNet, with the reputation the Reputation Registry has recorded for it — jobs paid, USDC settled, validated versus disputed. Read live from box storage.",
   alternates: { canonical: "/registry" },
 };
 
