@@ -1,3 +1,4 @@
+import { NETWORK_LABEL } from "@/lib/registries";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -410,7 +411,7 @@ export default async function AgentPage({ params }: { params: Promise<{ id: stri
         title="Identity record"
         note={
           round
-            ? `box ${BOX_PREFIX.agents}${agent.agentId} · read at TestNet round ${int(round)}`
+            ? `box ${BOX_PREFIX.agents}${agent.agentId} · read at ${NETWORK_LABEL} round ${int(round)}`
             : `box ${BOX_PREFIX.agents}${agent.agentId}`
         }
       >

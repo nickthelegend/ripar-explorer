@@ -33,6 +33,7 @@ import {
   BOX_PREFIX,
   REGISTRIES,
   SETTLEMENT_ASSET,
+  ALGOD_TOKEN,
   TESTNET_ALGOD,
   TESTNET_INDEXER,
   type RegistryKey,
@@ -62,7 +63,11 @@ export class RegistryReadError extends Error {
 async function get<T>(url: string, signal?: AbortSignal): Promise<T> {
   let res: Response;
   try {
-    res = await fetch(url, { signal, cache: "no-store" });
+    // Public AlgoNode needs no token and ignores the header; LocalNet rejects
+    // every request without it. Sent only when configured, so the default path
+    // is byte-identical to before.
+    const headers = ALGOD_TOKEN ? { "X-Algo-API-Token": ALGOD_TOKEN } : undefined;
+    res = await fetch(url, { signal, cache: "no-store", headers });
   } catch (e) {
     throw new RegistryReadError(`Network error reaching ${hostOf(url)}: ${(e as Error).message}`, url);
   }

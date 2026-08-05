@@ -1,3 +1,4 @@
+import { NETWORK_LABEL } from "@/lib/registries";
 import type { Metadata } from "next";
 import Link from "next/link";
 import {
@@ -114,7 +115,7 @@ export default async function NetworkStatsPage() {
           <TestNetBadge />
           {round && (
             <span className="text-[12.5px]" style={{ color: "var(--ink-3)" }}>
-              read at TestNet round <span className="tnum">{int(round)}</span>
+              read at {NETWORK_LABEL} round <span className="tnum">{int(round)}</span>
             </span>
           )}
         </div>

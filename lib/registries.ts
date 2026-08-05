@@ -9,9 +9,39 @@
  * quoting an app id that no longer holds the boxes the page is showing.
  */
 
-/** AlgoNode's public TestNet endpoints. No key, and CORS is open. */
-export const TESTNET_ALGOD = "https://testnet-api.algonode.cloud";
-export const TESTNET_INDEXER = "https://testnet-idx.algonode.cloud";
+/**
+ * Where the chain is, and which apps hold the boxes.
+ *
+ * AlgoNode's public TestNet endpoints by default: no key, CORS open. Every
+ * value is overridable by env so the explorer can be pointed at a LocalNet —
+ * which is the only way to develop it against a chain you can reset, and the
+ * only way to see it render a state you deliberately created.
+ *
+ * NEXT_PUBLIC_ so the client-side data-source strip reads the same values the
+ * server does. Two sources here is how the strip ends up quoting an app id
+ * that no longer holds the boxes on screen.
+ */
+const num = (v: string | undefined, fallback: number) => {
+  const n = Number(v);
+  return Number.isInteger(n) && n > 0 ? n : fallback;
+};
+
+export const TESTNET_ALGOD = process.env.NEXT_PUBLIC_ALGOD_URL ?? "https://testnet-api.algonode.cloud";
+export const TESTNET_INDEXER = process.env.NEXT_PUBLIC_INDEXER_URL ?? "https://testnet-idx.algonode.cloud";
+/** Sent as X-Algo-API-Token. Empty for public nodes; LocalNet wants the all-'a' token. */
+export const ALGOD_TOKEN = process.env.NEXT_PUBLIC_ALGOD_TOKEN ?? "";
+
+/**
+ * What to call the chain in front of a reader.
+ *
+ * Derived, not hardcoded. Every "read at TestNet round N" on these pages was a
+ * literal, so pointing the explorer at a LocalNet produced a page that read one
+ * chain and named another — the same shape of error as printing "USDC" over an
+ * amount denominated in something else, and just as easy to carry away wrong.
+ */
+export const NETWORK_LABEL =
+  process.env.NEXT_PUBLIC_NETWORK_LABEL ??
+  (/localhost|127\.0\.0\.1/.test(TESTNET_ALGOD) ? "LocalNet" : "TestNet");
 
 export type RegistryKey = "identity" | "reputation" | "validation";
 
@@ -20,7 +50,7 @@ export const REGISTRIES: Record<
   { appId: number; name: string; role: string }
 > = {
   identity: {
-    appId: 768_633_998,
+    appId: num(process.env.NEXT_PUBLIC_IDENTITY_APP, 768_633_998),
     name: "IdentityRegistry",
     role: "Who an agent is: id, domain and controlling address.",
   },
@@ -31,12 +61,12 @@ export const REGISTRIES: Record<
     // This one takes the transfer itself, accept_feedback(axfer, …), and reads
     // the amount and id off a transaction the AVM has already validated, so
     // every credit here is backed by money that actually moved.
-    appId: 768_633_999,
+    appId: num(process.env.NEXT_PUBLIC_REPUTATION_APP, 768_633_999),
     name: "ReputationRegistry",
     role: "What an agent has been paid for, read from the settling transfer itself.",
   },
   validation: {
-    appId: 768_634_000,
+    appId: num(process.env.NEXT_PUBLIC_VALIDATION_APP, 768_634_000),
     name: "ValidationRegistry",
     role: "The job board and the verdict on each delivered result.",
   },
@@ -79,7 +109,7 @@ export const BOX_PREFIX = {
  * correcting it took a redeploy rather than a config change.
  */
 export const SETTLEMENT_ASSET = {
-  id: 10_458_941,
+  id: num(process.env.NEXT_PUBLIC_SETTLEMENT_ASSET, 10_458_941),
   unitName: "USDC",
   name: "USDC",
   decimals: 6,

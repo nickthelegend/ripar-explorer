@@ -1,3 +1,4 @@
+import { NETWORK_LABEL } from "@/lib/registries";
 import type { Metadata } from "next";
 import Link from "next/link";
 import {
@@ -192,7 +193,7 @@ export default async function LeaderboardPage({
             title="Ranked by the sc_ box"
             note={
               round
-                ? `apps ${REGISTRIES.identity.appId} + ${REGISTRIES.reputation.appId} · read at TestNet round ${int(round)}`
+                ? `apps ${REGISTRIES.identity.appId} + ${REGISTRIES.reputation.appId} · read at ${NETWORK_LABEL} round ${int(round)}`
                 : `apps ${REGISTRIES.identity.appId} + ${REGISTRIES.reputation.appId}`
             }
           >

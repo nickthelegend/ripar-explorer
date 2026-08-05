@@ -6,3 +6,6 @@ out
 .vercel
 *.tsbuildinfo
 next-env.d.ts
+
+# Local chain config — never committed; it names a chain only this machine has.
+.env.local

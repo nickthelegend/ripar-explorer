@@ -21,7 +21,7 @@ import {
   type OnchainScore,
 } from "@/lib/erc8004";
 import { absTime, int, liveAgo, shortAddr, usdc } from "@/lib/format";
-import { SETTLEMENT_ASSET } from "@/lib/registries";
+import { SETTLEMENT_ASSET, NETWORK_LABEL } from "@/lib/registries";
 import { EmptyState, Panel, Stat, Status } from "@/components/ui";
 import { CopyButton } from "@/components/copy-button";
 import { RegistrySearch } from "@/components/registry-search";
@@ -231,7 +231,7 @@ export default async function RegistryPage({
             title="Agents in the Identity Registry"
             note={
               round
-                ? `app ${REGISTRIES.identity.appId} · read at TestNet round ${int(round)}`
+                ? `app ${REGISTRIES.identity.appId} · read at ${NETWORK_LABEL} round ${int(round)}`
                 : `app ${REGISTRIES.identity.appId}`
             }
           >

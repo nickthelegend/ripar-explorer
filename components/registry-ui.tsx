@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { ArrowDown, ArrowUp, ArrowUpRight } from "lucide-react";
-import { REGISTRIES, peraApp } from "@/lib/registries";
+import { REGISTRIES, peraApp, NETWORK_LABEL } from "@/lib/registries";
 
 /**
  * The parts both registry routes share. Kept out of `components/ui.tsx`
@@ -40,7 +40,7 @@ export function TestNetBadge() {
       className="inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[11.5px] font-medium"
       style={{ borderColor: "var(--line-strong)", color: "var(--ink-2)" }}
     >
-      Algorand TestNet
+      Algorand {NETWORK_LABEL}
     </span>
   );
 }

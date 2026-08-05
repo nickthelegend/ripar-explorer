@@ -19,7 +19,7 @@ import { absTime } from "@/lib/format";
 import { withNetwork } from "@/lib/nav";
 // Constants only — the reader itself is server-side, and importing app ids from
 // one place is what stops this bar naming an app the pages no longer read.
-import { REGISTRIES, peraApp } from "@/lib/registries";
+import { REGISTRIES, peraApp, NETWORK_LABEL } from "@/lib/registries";
 
 const STORE_KEY = "ripar_explorer_network";
 
@@ -46,11 +46,16 @@ const NAV = [
  * rather than offered.
  */
 const REAL_CHAIN_ROUTES = [
-  { prefix: "/live", network: "MainNet", why: "x402 settlements are read from the Algorand MainNet indexer." },
+  // `registries` says which chain data this route reads. It used to be inferred
+  // by comparing `network` to the literal "TestNet" — a DISPLAY label doing
+  // load-bearing work, so the moment the label became accurate for LocalNet
+  // every registry page started claiming it read the MainNet indexer.
+  { prefix: "/live", network: "MainNet", registries: false, why: "x402 settlements are read from the Algorand MainNet indexer." },
   {
     prefix: "/registry",
-    network: "TestNet",
-    why: "The three ERC-8004 registries are deployed to Algorand TestNet and nowhere else.",
+    network: NETWORK_LABEL,
+    registries: true,
+    why: `The three ERC-8004 registries are deployed to Algorand ${NETWORK_LABEL} and nowhere else.`,
   },
   // `/agent/<id>` and `/search` read the same boxes as `/registry`. They are
   // listed here rather than nested under it because the provenance strip keys
@@ -59,12 +64,14 @@ const REAL_CHAIN_ROUTES = [
   // the strip exists to prevent.
   {
     prefix: "/agent",
-    network: "TestNet",
-    why: "An agent profile is decoded from box storage in the TestNet Identity, Reputation and Validation registries.",
+    network: NETWORK_LABEL,
+    registries: true,
+    why: `An agent profile is decoded from box storage in the ${NETWORK_LABEL} Identity, Reputation and Validation registries.`,
   },
   {
     prefix: "/search",
-    network: "TestNet",
+    network: NETWORK_LABEL,
+    registries: true,
     why: "Lookups resolve through the Identity Registry's own dm_ and ad_ boxes on TestNet.",
   },
   // `/tx/<id>` decodes one real transaction from the TestNet indexer. It is
@@ -73,7 +80,8 @@ const REAL_CHAIN_ROUTES = [
   // the provenance strip has to tell them apart.
   {
     prefix: "/tx",
-    network: "TestNet",
+    network: NETWORK_LABEL,
+    registries: true,
     why: "A transaction is read from the TestNet indexer and decoded against the deployed registries' ABI.",
   },
 ] as const;
@@ -281,7 +289,7 @@ export function DataSourceBar() {
   // Which chain, not which path. `/agent` and `/search` read the same TestNet
   // boxes as `/registry`; branching on the prefix would have labelled them with
   // `/live`'s MainNet copy the moment they were added.
-  const readsRegistries = onChain?.network === "TestNet";
+  const readsRegistries = onChain?.registries === true;
 
   return (
     <div className="border-b" style={{ borderColor: "var(--line)", background: "var(--panel-2)" }}>
@@ -295,7 +303,7 @@ export function DataSourceBar() {
             {readsRegistries ? (
               <>
                 <span style={{ color: "var(--ink-2)" }}>
-                  Read from box storage on Algorand TestNet at request time. Nothing cached, nothing seeded.
+                  Read from box storage on Algorand {NETWORK_LABEL} at request time. Nothing cached, nothing seeded.
                 </span>
                 <span className="hidden h-3 w-px lg:block" style={{ background: "var(--line-strong)" }} aria-hidden />
                 <SourceRef

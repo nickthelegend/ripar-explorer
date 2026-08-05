@@ -1,3 +1,4 @@
+import { NETWORK_LABEL } from "@/lib/registries";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { X } from "lucide-react";
@@ -276,7 +277,7 @@ export default async function RegistryJobsPage({
             title="Jobs"
             note={
               round
-                ? `app ${REGISTRIES.validation.appId} · read at TestNet round ${int(round)}`
+                ? `app ${REGISTRIES.validation.appId} · read at ${NETWORK_LABEL} round ${int(round)}`
                 : `app ${REGISTRIES.validation.appId}`
             }
           >
