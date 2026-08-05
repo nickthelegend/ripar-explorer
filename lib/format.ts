@@ -163,7 +163,7 @@ export const TX_KIND: Record<TxKind, { label: string; tone: Tone; hint: string }
     label: "Escrow release",
     tone: "ok",
     // The rate is the sample dataset's own assumption and is named as such.
-    // The DEPLOYED ValidationRegistry (768572979) has no fee mechanism at all —
+    // The DEPLOYED ValidationRegistry (768634000) has no fee mechanism at all —
     // its global state carries no fee_bps and no treasury, and release_escrow
     // sends the whole balance — so stating a protocol fee as a fact about Ripar
     // would be describing a contract that does not exist.

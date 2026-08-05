@@ -157,7 +157,7 @@ export class TxReadError extends Error {
  * The registries are TestNet-only, but x402 settlements happen on MainNet, and
  * both are things someone might paste in. So the lookup tries TestNet first and
  * falls back to MainNet, and every consumer is handed the answer along with the
- * transaction — because APPLICATION IDS ARE NETWORK-SCOPED. App 768572968 on
+ * transaction — because APPLICATION IDS ARE NETWORK-SCOPED. App 768633998 on
  * MainNet is somebody else's contract entirely, and labelling it
  * "IdentityRegistry" because the number matches would be the single worst
  * mistake this decoder could make.
