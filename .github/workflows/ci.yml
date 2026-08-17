@@ -37,5 +37,11 @@ jobs:
       - name: Typecheck
         run: npx tsc --noEmit
 
+      # The numbers on the registry pages are real; only the ticker beside them
+      # can lie, and nothing else notices when it does. This reads the deployed
+      # ReputationRegistry and fails on any disagreement.
+      - name: the settlement asset we name is the one the chain asserts
+        run: node scripts/check-settlement-asset.mjs
+
       - name: Build
         run: npm run build

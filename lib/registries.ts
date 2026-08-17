@@ -95,23 +95,28 @@ export const BOX_PREFIX = {
 } as const;
 
 /**
- * The asset the ReputationRegistry counts, read from its own `usdc_asset`
- * global at bootstrap and repeated here so a page can name it without a call.
+ * The asset the ReputationRegistry counts.
  *
- * Circulating TestNet USDC — the same asset the x402 side quotes prices in, so
- * a figure on these pages and a figure on a 402 challenge mean the same thing.
+ * This TRACKS THE CHAIN; it is not a preference. `bootstrap` fixes `usdc_asset`
+ * once and `accept_feedback` asserts it on every credit, so the deployed
+ * registry is the definition and this is a transcription of it.
  *
- * An earlier generation of the registries was bootstrapped to a token minted
- * for this deployment, because the TestNet USDC faucet is login-gated and an
- * unfunded settlement asset would have meant no settlements to read at all.
- * That made every amount here a near-homonym of the real one, which is exactly
- * the kind of figure a reader carries away wrong. `bootstrap` is one-shot, so
- * correcting it took a redeploy rather than a config change.
+ * Today that is `rUSDC` — a six-decimal token minted for this project, because
+ * the circulating TestNet USDC faucet is login-gated and an unfunded settlement
+ * asset would have meant no settlements to read at all. The intent is to move to
+ * circulating USDC (10458941); `bootstrap` is one-shot, so that is a redeploy
+ * rather than a config change, and this constant moves WITH the redeploy, never
+ * ahead of it. It was briefly set to 10458941 while the chain still asserted
+ * 768547363, which would have labelled every amount on the "Real chain data"
+ * pages with a ticker that was not the one being counted.
+ *
+ * `scripts/check-settlement-asset.mjs` reads the registry and fails the build on
+ * any disagreement, so this cannot drift again in either direction.
  */
 export const SETTLEMENT_ASSET = {
-  id: num(process.env.NEXT_PUBLIC_SETTLEMENT_ASSET, 10_458_941),
-  unitName: "USDC",
-  name: "USDC",
+  id: num(process.env.NEXT_PUBLIC_SETTLEMENT_ASSET, 768_547_363),
+  unitName: "rUSDC",
+  name: "Ripar Test USDC",
   decimals: 6,
 } as const;
 

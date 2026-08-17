@@ -782,6 +782,60 @@ export async function getRegistryState(
 }
 
 /**
+ * The settlement asset, read from the registry that actually asserts it.
+ *
+ * `SETTLEMENT_ASSET` in lib/registries.ts is a constant, and a constant can
+ * disagree with the chain. It did: the id there was changed to circulating
+ * TestNet USDC while the deployed ReputationRegistry was still bootstrapped to
+ * a different asset, so every amount would have been labelled with a ticker
+ * that was not the one being counted. Nothing catches that — both halves are
+ * internally consistent, they simply describe different tokens.
+ *
+ * `bootstrap` fixes `usdc_asset` once and the contract asserts it on every
+ * credit, so that global IS the definition. The unit name and decimals come
+ * from the ASA itself for the same reason: an asset's decimals are a property
+ * of the asset, and assuming six for one that has two misreports by ten
+ * thousand times.
+ *
+ * `agrees` is returned rather than thrown on, so a page can render real numbers
+ * AND say the constant has drifted, instead of failing closed over a label.
+ */
+export type SettlementAsset = {
+  id: number;
+  unitName: string;
+  decimals: number;
+  /** False when lib/registries.ts names a different asset than the chain does. */
+  agrees: boolean;
+};
+
+export async function getSettlementAsset(signal?: AbortSignal): Promise<SettlementAsset> {
+  const appId = REGISTRIES.reputation.appId;
+  const info = await get<AppInfo>(`${TESTNET_ALGOD}/v2/applications/${appId}`, signal);
+  const encoded = Buffer.from("usdc_asset", "utf8").toString("base64");
+  const id = (info.params?.["global-state"] ?? []).find((g) => g.key === encoded)?.value?.uint ?? 0;
+
+  if (!id) {
+    // Bootstrapped registries always carry it; zero means this app is not one,
+    // or was never bootstrapped — either way there is nothing to label with.
+    throw new RegistryReadError(
+      `ReputationRegistry ${appId} has no usdc_asset in global state, so nothing on chain defines the settlement asset.`,
+      `${TESTNET_ALGOD}/v2/applications/${appId}`,
+    );
+  }
+
+  const asset = await get<{ params?: { "unit-name"?: string; decimals?: number } }>(
+    `${TESTNET_ALGOD}/v2/assets/${id}`,
+    signal,
+  );
+  return {
+    id,
+    unitName: asset.params?.["unit-name"] ?? `asset ${id}`,
+    decimals: asset.params?.decimals ?? 6,
+    agrees: id === SETTLEMENT_ASSET.id,
+  };
+}
+
+/**
  * A read a page can survive losing, tagged with why it failed.
  *
  * There is a trap this exists to avoid. Asking algod for the boxes of an
