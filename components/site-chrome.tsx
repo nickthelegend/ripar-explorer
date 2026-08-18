@@ -51,6 +51,16 @@ const REAL_CHAIN_ROUTES = [
   // load-bearing work, so the moment the label became accurate for LocalNet
   // every registry page started claiming it read the MainNet indexer.
   { prefix: "/live", network: "MainNet", registries: false, why: "x402 settlements are read from the Algorand MainNet indexer." },
+  // /decode reads nothing of ours at all: it requests whatever URL the visitor
+  // typed and shows that server's answer. Leaving it on the default made the
+  // sample-dataset strip sit above a page whose entire content is a live 402
+  // from somebody else's endpoint.
+  {
+    prefix: "/decode",
+    network: null,
+    registries: false,
+    why: "This page requests the URL you type and decodes that server's own reply. No Ripar dataset is involved.",
+  },
   {
     prefix: "/registry",
     network: NETWORK_LABEL,
