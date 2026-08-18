@@ -43,5 +43,11 @@ jobs:
       - name: the settlement asset we name is the one the chain asserts
         run: node scripts/check-settlement-asset.mjs
 
+      # A decoder that does not recognise a method still renders — it just says
+      # "unknown selector" on a page whose whole job is decoding. That is how the
+      # bidding subsystem went missing from /tx for as long as it did.
+      - name: we can name every method the deployed programs dispatch
+        run: node scripts/check-abi-coverage.mjs
+
       - name: Build
         run: npm run build

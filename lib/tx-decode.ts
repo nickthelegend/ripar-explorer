@@ -30,10 +30,17 @@ import { REGISTRIES, SETTLEMENT_ASSET, TESTNET_INDEXER } from "./registries";
 
 /* ── the methods these three apps actually expose ──────────────────────────
  *
- * Every signature below was checked against the DEPLOYED approval program by
- * searching it for the derived selector — the local ARC-56 artifacts are older
- * than the deployment and list neither the escrow methods nor the real return
- * type of accept_feedback, so they are not the source used here.
+ * Every signature below is checked against the DEPLOYED approval program by
+ * searching it for the derived selector. `scripts/check-abi-coverage.mjs` does
+ * that on every build, in both directions: a signature here that the program
+ * does not dispatch fails, and a method the program DOES dispatch that is
+ * missing here fails too.
+ *
+ * The second direction is the one that bit. This list drifted behind the
+ * contracts and lost the whole bidding subsystem, so a real accept_bid call
+ * rendered as "selector 0x537120ad matches no method this explorer knows about"
+ * — on a page whose entire purpose is decoding. Missing a method is not a
+ * cosmetic gap here; it is the page failing at its one job.
  */
 
 type MethodSpec = { signature: string; summary: string };
@@ -47,6 +54,7 @@ const IDENTITY_METHODS: MethodSpec[] = [
   { signature: "resolve_by_address(address)uint64", summary: "Resolved an address to an agent id." },
   { signature: "agent_address(uint64)address", summary: "Resolved an agent id to its controlling address." },
   { signature: "total_agents()uint64", summary: "Read the agent counter." },
+  { signature: "deregister_agent(uint64)bool", summary: "Retired an identity. The id is never reused." },
 ];
 
 const REPUTATION_METHODS: MethodSpec[] = [
@@ -63,6 +71,7 @@ const REPUTATION_METHODS: MethodSpec[] = [
   { signature: "bootstrap(uint64,uint64)bool", summary: "Fixed the Identity Registry and the settlement asset. Creator only." },
   { signature: "set_validation_app(uint64)bool", summary: "Named the ValidationRegistry allowed to write verdicts." },
   { signature: "get_score(uint64)(uint64,uint64,uint64,uint64,uint64,uint64,uint64)", summary: "Read one agent's score." },
+  { signature: "recent(uint64,uint64)bool", summary: "Asked whether an agent has been credited inside a recent window." },
 ];
 
 const VALIDATION_METHODS: MethodSpec[] = [
@@ -85,6 +94,24 @@ const VALIDATION_METHODS: MethodSpec[] = [
   { signature: "bootstrap(uint64,uint64,uint64,uint64)bool", summary: "Set the registries, the escrow asset and the dispute window." },
   { signature: "opt_in_asset()bool", summary: "Opted the app's own account into the escrow asset, so it can hold one." },
   { signature: "total_jobs()uint64", summary: "Read the job counter." },
+  { signature: "get_job(uint64)(uint64,address,uint64,uint64,uint64,byte[],byte[],uint64,uint64,uint64)", summary: "Read one job record." },
+  {
+    signature: "place_bid(uint64,uint64,uint64,byte[])bool",
+    summary: "An agent offered to do a job for a stated price. Only while the job is open.",
+  },
+  { signature: "withdraw_bid(uint64,uint64)bool", summary: "An agent took its own bid back, before the job was assigned." },
+  {
+    signature: "accept_bid(uint64,uint64)bool",
+    summary:
+      "The client took a bid, which assigns the job AND rewrites the budget to the bid amount — so the number the agent is owed is the number it offered, not the number first posted.",
+  },
+  { signature: "get_bid(uint64,uint64)(uint64,uint64,uint64,byte[],uint64)", summary: "Read one bid on one job." },
+  {
+    signature: "release_partial(uint64,uint64)uint64",
+    summary: "Paid part of an escrow out on a milestone, leaving the rest held.",
+  },
+  { signature: "expire_job(uint64)bool", summary: "Closed a job whose deadline passed with nothing delivered." },
+  { signature: "set_fee(uint64,address)bool", summary: "Set the protocol fee in basis points and where it is paid. Creator only." },
 ];
 
 export type KnownApp = { appId: number; name: string; methods: MethodSpec[] };
