@@ -45,12 +45,24 @@ export const NETWORK_LABEL =
 
 export type RegistryKey = "identity" | "reputation" | "validation";
 
+/**
+ * These moved once, and the reason matters more than the numbers.
+ *
+ * The first TestNet deployment (768633998/9/768634000) is still on chain and
+ * still readable, but its deployer mnemonic was written to /tmp and pruned, so
+ * nobody can sign for it: no agent can be registered, no job posted, no escrow
+ * released. A registry you can only read is a museum piece.
+ *
+ * These three replace them, deployed from a key stored in ~/.ripar at 0600, and
+ * they settle in circulating TestNet USDC (10458941) rather than an asset we
+ * minted for ourselves.
+ */
 export const REGISTRIES: Record<
   RegistryKey,
   { appId: number; name: string; role: string }
 > = {
   identity: {
-    appId: num(process.env.NEXT_PUBLIC_IDENTITY_APP, 768_633_998),
+    appId: num(process.env.NEXT_PUBLIC_IDENTITY_APP, 769_444_119),
     name: "IdentityRegistry",
     role: "Who an agent is: id, domain and controlling address.",
   },
@@ -61,12 +73,12 @@ export const REGISTRIES: Record<
     // This one takes the transfer itself, accept_feedback(axfer, …), and reads
     // the amount and id off a transaction the AVM has already validated, so
     // every credit here is backed by money that actually moved.
-    appId: num(process.env.NEXT_PUBLIC_REPUTATION_APP, 768_633_999),
+    appId: num(process.env.NEXT_PUBLIC_REPUTATION_APP, 769_444_120),
     name: "ReputationRegistry",
     role: "What an agent has been paid for, read from the settling transfer itself.",
   },
   validation: {
-    appId: num(process.env.NEXT_PUBLIC_VALIDATION_APP, 768_634_000),
+    appId: num(process.env.NEXT_PUBLIC_VALIDATION_APP, 769_444_121),
     name: "ValidationRegistry",
     role: "The job board and the verdict on each delivered result.",
   },
@@ -101,22 +113,25 @@ export const BOX_PREFIX = {
  * once and `accept_feedback` asserts it on every credit, so the deployed
  * registry is the definition and this is a transcription of it.
  *
- * Today that is `rUSDC` — a six-decimal token minted for this project, because
- * the circulating TestNet USDC faucet is login-gated and an unfunded settlement
- * asset would have meant no settlements to read at all. The intent is to move to
- * circulating USDC (10458941); `bootstrap` is one-shot, so that is a redeploy
- * rather than a config change, and this constant moves WITH the redeploy, never
- * ahead of it. It was briefly set to 10458941 while the chain still asserted
- * 768547363, which would have labelled every amount on the "Real chain data"
- * pages with a ticker that was not the one being counted.
+ * That is now circulating TestNet USDC (10458941), the asset Circle issues, not
+ * one we minted for ourselves. It used to be `rUSDC` (768547363) because the
+ * faucet is login-gated and an unfunded settlement asset would have meant no
+ * settlements to read at all — but a payment layer whose demo settles in a token
+ * its own authors printed is demonstrating the plumbing, not the payment.
+ *
+ * `bootstrap` is one-shot, so the move required a redeploy rather than a config
+ * change, and this constant moves WITH the redeploy, never ahead of it. It was
+ * once set to 10458941 while the chain still asserted 768547363, which would
+ * have labelled every amount on the "Real chain data" pages with a ticker that
+ * was not the one being counted.
  *
  * `scripts/check-settlement-asset.mjs` reads the registry and fails the build on
  * any disagreement, so this cannot drift again in either direction.
  */
 export const SETTLEMENT_ASSET = {
-  id: num(process.env.NEXT_PUBLIC_SETTLEMENT_ASSET, 768_547_363),
-  unitName: "rUSDC",
-  name: "Ripar Test USDC",
+  id: num(process.env.NEXT_PUBLIC_SETTLEMENT_ASSET, 10_458_941),
+  unitName: "USDC",
+  name: "USD Coin",
   decimals: 6,
 } as const;
 
