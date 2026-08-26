@@ -71,7 +71,11 @@ export function Decoder() {
           type="submit"
           disabled={busy}
           className="rounded-lg px-4 py-2 text-[13px] font-medium text-white disabled:opacity-60"
-          style={{ background: "var(--brand)" }}
+          // --brand was never defined in globals.css, so this resolved to
+          // transparent: white text on a white page, an invisible button that
+          // only Enter could submit. --accent-deep carries 5.07:1 against white,
+          // where --accent (#ff6b2b) is 2.86:1 and fails AA at this 13px size.
+          style={{ background: "var(--accent-deep)" }}
         >
           {busy ? "Asking…" : "Decode"}
         </button>
