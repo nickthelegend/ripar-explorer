@@ -1,28 +1,20 @@
-import type { Metadata } from "next";
-import { Suspense } from "react";
-import { JobsView } from "./jobs-view";
-import { Panel, TableSkeleton } from "@/components/ui";
+import { permanentRedirect } from "next/navigation";
 
-export const metadata: Metadata = {
-  title: "Jobs",
-  description:
-    "The Ripar job board: open, bidding, running, verifying, verified and failed work, with budgets, bid counts and escrow state for each.",
-  alternates: { canonical: "/jobs" },
-};
-
+/**
+ * This page used to render a fabricated dataset.
+ *
+ * The explorer has always had two lists of the same thing: this one, built from
+ * a sample dataset with invented statuses, success rates and operators, and the
+ * registry views, which decode the live ValidationRegistry out of box storage at
+ * request time. Both were reachable, the sample one was linked first, and the
+ * disclosure was a line of footer text — so the first list a visitor saw was
+ * the one that was made up.
+ *
+ * Fields like "success rate" and "operator" have no counterpart on chain, so
+ * there was nothing honest to migrate: keeping the columns would have meant
+ * keeping the invention. The page now sends people to the list that is real.
+ * The URL still resolves, so existing links do not break.
+ */
 export default function JobsPage() {
-  return (
-    <Suspense
-      fallback={
-        <div className="mx-auto max-w-[1240px] px-4 py-8 sm:px-6">
-          <div className="skel mb-6 h-7 w-32" />
-          <Panel>
-            <TableSkeleton rows={8} cols={6} />
-          </Panel>
-        </div>
-      }
-    >
-      <JobsView />
-    </Suspense>
-  );
+  permanentRedirect("/registry/jobs");
 }

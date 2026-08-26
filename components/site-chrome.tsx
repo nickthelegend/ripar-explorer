@@ -284,7 +284,9 @@ function SearchTrigger() {
  *
  * This explorer shows two different kinds of record and they must never be
  * mistaken for each other. `/live` and `/registry` are read off a chain at
- * request time; `/agents`, `/jobs` and `/transactions` are a sample dataset.
+ * request time. `/agents`, `/jobs` and `/transactions` used to be a sample
+ * dataset and now redirect to the chain-backed views, so every surface the nav
+ * offers reads the chain.
  * The bar changes with the route rather than describing both at once, because
  * a reader on a page wants to know what *this* page is.
  *
@@ -409,7 +411,7 @@ export function SiteFooter() {
         </span>
         <p className="max-w-[52ch] leading-relaxed" style={{ color: "var(--ink-2)" }}>
           A public index of agents, jobs and x402 settlements on Algorand. The registry and live pages read a
-          chain directly; the agent, job and transaction pages are a sample dataset until the indexer lands.
+          chain directly — agents, jobs and settlements are decoded from box storage and the public indexer at request time.
         </p>
         <nav className="ml-auto flex flex-wrap items-center gap-x-5 gap-y-2" style={{ color: "var(--ink-2)" }}>
           <Link href={withNetwork("/agents", network)} className="hover:text-[var(--accent-deep)]">

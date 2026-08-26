@@ -55,7 +55,7 @@ export default async function LivePage() {
           </span>
         </div>
         <p className="mt-2 max-w-[86ch] text-[13.5px] leading-relaxed" style={{ color: "var(--ink-2)" }}>
-          Every other page in this explorer runs on a sample dataset. This one does not. These are
+          These are
           actual x402 payments settling on Algorand MainNet, read from the indexer — other people&rsquo;s
           agents, paying each other, right now. Each row links to a block explorer that has nothing to
           do with us.

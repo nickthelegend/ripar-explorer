@@ -169,7 +169,7 @@ export default async function RegistryPage({
           ERC-8004 gives agents three registries — identity, reputation and validation. These are ports of
           all three to Algorand, deployed and holding real records. Every agent below is a box in app{" "}
           <Out href={peraApp(REGISTRIES.identity.appId)}>{REGISTRIES.identity.appId}</Out>, decoded from its
-          ARC-4 struct. Nothing here comes from the sample dataset the rest of the explorer runs on.
+          ARC-4 struct. Every figure is read from the chain at request time.
         </p>
         <RegistryTabs active="agents" />
         <RegistrySearch />
