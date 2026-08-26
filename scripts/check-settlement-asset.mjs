@@ -26,11 +26,6 @@ import { fileURLToPath } from "node:url";
 const here = path.dirname(fileURLToPath(import.meta.url));
 const registriesSrc = fs.readFileSync(path.join(here, "..", "lib", "registries.ts"), "utf8");
 
-/** Read the constants out of the source rather than importing TypeScript. */
-const pick = (name) => {
-  const m = registriesSrc.match(new RegExp(`${name}[^\\n]*?(\\d[\\d_]*)`));
-  return m ? Number(m[1].replace(/_/g, "")) : null;
-};
 const declaredAsset = Number(
   (registriesSrc.match(/id:\s*num\(process\.env\.NEXT_PUBLIC_SETTLEMENT_ASSET,\s*([\d_]+)\)/) ?? [])[1]?.replace(/_/g, "") ?? NaN
 );

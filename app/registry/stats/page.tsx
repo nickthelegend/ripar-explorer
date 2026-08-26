@@ -21,7 +21,6 @@ import {
   listAgents,
   listJobs,
   loraAsset,
-  peraApp,
   tryRead,
   type OnchainJob,
   type OnchainScore,
