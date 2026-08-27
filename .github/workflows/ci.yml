@@ -37,6 +37,12 @@ jobs:
       - name: Typecheck
         run: npx tsc --noEmit
 
+      # Added after a sibling repo accumulated eleven lint problems unnoticed —
+      # two of them refs touched during render, which tsc and next build both
+      # pass. This repo is clean today; the step is here to keep it that way.
+      - name: Lint
+        run: npx eslint .
+
       # The numbers on the registry pages are real; only the ticker beside them
       # can lie, and nothing else notices when it does. This reads the deployed
       # ReputationRegistry and fails on any disagreement.
