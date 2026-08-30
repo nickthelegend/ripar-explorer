@@ -62,7 +62,7 @@ export const REGISTRIES: Record<
   { appId: number; name: string; role: string }
 > = {
   identity: {
-    appId: num(process.env.NEXT_PUBLIC_IDENTITY_APP, 769_444_119),
+    appId: num(process.env.NEXT_PUBLIC_IDENTITY_APP, 770_382_913),
     name: "IdentityRegistry",
     role: "Who an agent is: id, domain and controlling address.",
   },
@@ -73,12 +73,12 @@ export const REGISTRIES: Record<
     // This one takes the transfer itself, accept_feedback(axfer, …), and reads
     // the amount and id off a transaction the AVM has already validated, so
     // every credit here is backed by money that actually moved.
-    appId: num(process.env.NEXT_PUBLIC_REPUTATION_APP, 769_444_120),
+    appId: num(process.env.NEXT_PUBLIC_REPUTATION_APP, 770_382_914),
     name: "ReputationRegistry",
     role: "What an agent has been paid for, read from the settling transfer itself.",
   },
   validation: {
-    appId: num(process.env.NEXT_PUBLIC_VALIDATION_APP, 769_444_121),
+    appId: num(process.env.NEXT_PUBLIC_VALIDATION_APP, 770_382_915),
     name: "ValidationRegistry",
     role: "The job board and the verdict on each delivered result.",
   },
