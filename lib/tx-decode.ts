@@ -111,6 +111,15 @@ const VALIDATION_METHODS: MethodSpec[] = [
     summary: "Paid part of an escrow out on a milestone, leaving the rest held.",
   },
   { signature: "expire_job(uint64)bool", summary: "Closed a job whose deadline passed with nothing delivered." },
+  // The deployed ValidationRegistry dispatches this and the decoder did not
+  // know it, so a real expire_verdict call rendered as "unknown" — the drift
+  // guard in CI is what caught it. It is the escape hatch for a validator who
+  // never returns: once the window has passed, anyone may act, which is the
+  // difference between escrow and confiscation.
+  {
+    signature: "expire_verdict(uint64)bool",
+    summary: "Released a submitted job after its verdict window closed with no validator answer.",
+  },
   { signature: "set_fee(uint64,address)bool", summary: "Set the protocol fee in basis points and where it is paid. Creator only." },
 ];
 
